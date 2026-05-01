@@ -1,0 +1,62 @@
+{
+    "name":        "empaphy/docker-composer",
+    "description": "A Composer plugin that ensures scripts are run in a Docker Compose service.",
+    "type":        "composer-plugin",
+    "keywords":    ["docker", "composer", "compose"],
+    "homepage":    "https://docker-composer.empaphy.org/",
+    "license":     "MIT",
+    "authors": [{
+        "name":     "Alwin Garside",
+        "email":    "alwin@garsi.de",
+        "homepage": "https://alwin.garsi.de"
+    }],
+    "support": {
+        "issues": "https://github.com/empaphy/docker-composer/issues",
+        "forum":  "https://github.com/empaphy/docker-composer/discussions",
+        "wiki":   "https://github.com/empaphy/docker-composer/wiki",
+        "source": "https://github.com/empaphy/docker-composer/tree/main",
+        "docs":   "https://docker-composer.empaphy.org/",
+        "rss":    "https://github.com/empaphy/docker-composer/releases.atom"
+    },
+    "require": {
+        "php": ">=8.1",
+        "composer-plugin-api": ">=1.0"
+    },
+    "require-dev": {
+        "brianium/paratest": "^7.2",
+        "composer/composer": ">=1.0",
+        "empaphy/filharmonic": "^1",
+        "friendsofphp/php-cs-fixer": "^3",
+        "phpstan/phpstan": "^2",
+        "phpstan/phpstan-phpunit": "^2",
+        "phpunit/phpunit": "^10 <10.5.32 || >=11.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "empaphy\\docker_composer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "audit": {
+            "ignore": {
+                "PKSA-z3gr-8qht-p93v": "'PHPUnit Vulnerable to Unsafe Deserialization in PHPT Code Coverage Handling' – We don't use PHPT"
+            }
+        }
+    },
+    "scripts": {
+        "style-check": "php-cs-fixer check",
+        "style-fix": "php-cs-fixer fix",
+        "stan": "phpstan --memory-limit=1G",
+        "test": "phpunit"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    }
+}

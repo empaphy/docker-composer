@@ -1,0 +1,14 @@
+/.phpdoc
+/build
+/var
+/vendor
+
+/composer.lock
+/phpstan.neon
+/phpunit.xml
+
+.DS_Store
+.git
+Thumbs.db
+compose.override.yaml
+docker-compose.override.yaml

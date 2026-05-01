@@ -1,0 +1,13 @@
+services:
+  php:
+    image: "php:8.5-cli"
+    command: [ 'sleep', 'infinity' ]
+    volumes:
+      - { type: bind, source: '.', target: '/usr/src/app' }
+
+  phpdoc:
+    image: phpdoc/phpdoc:3
+    init: true
+    volumes:
+      - { type: bind, source: ./, target: /data }
+    profiles: ['phpdoc']
