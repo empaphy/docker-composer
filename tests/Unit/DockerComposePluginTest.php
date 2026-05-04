@@ -648,8 +648,10 @@ class DockerComposePluginTest extends TestCase
         self::assertSame(3, $runner->run(['docker', 'compose']));
         self::assertSame(4, $runner->run(['docker', 'compose'], true));
         self::assertSame('executor error', $runner->getErrorOutput());
-        self::assertSame(["'docker' 'compose'"], $processExecutor->commands);
-        self::assertSame(["'docker' 'compose'"], $processExecutor->ttyCommands);
+        $expectedCommand = implode(' ', array_map([ProcessExecutor::class, 'escape'], ['docker', 'compose']));
+
+        self::assertSame([$expectedCommand], $processExecutor->commands);
+        self::assertSame([$expectedCommand], $processExecutor->ttyCommands);
     }
 
     /**
