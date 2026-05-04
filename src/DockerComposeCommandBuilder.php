@@ -13,7 +13,7 @@ namespace empaphy\docker_composer;
 
 use Composer\Script\Event as ScriptEvent;
 
-final class DockerComposeCommandBuilder
+class DockerComposeCommandBuilder
 {
     /**
      * @return list<string>
