@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace empaphy\docker_composer;
 
 use Composer\Script\Event as ScriptEvent;
+use Composer\Util\ProcessExecutor;
 
 class DockerComposeCommandBuilder
 {
@@ -84,6 +85,7 @@ class DockerComposeCommandBuilder
             'composer',
             'run-script',
             $event->isDevMode() ? '--dev' : '--no-dev',
+            sprintf('--timeout=%d', ProcessExecutor::getTimeout()),
             $event->getName(),
         ];
 

@@ -100,6 +100,7 @@ class DockerComposePluginTest extends TestCase
                 'composer',
                 'run-script',
                 '--no-dev',
+                '--timeout=300',
                 'test',
                 '--',
                 '--filter',
@@ -158,6 +159,7 @@ class DockerComposePluginTest extends TestCase
                 'composer',
                 'run-script',
                 '--no-dev',
+                '--timeout=300',
                 'test',
             ],
             [
@@ -175,6 +177,7 @@ class DockerComposePluginTest extends TestCase
                 'composer',
                 'run-script',
                 '--no-dev',
+                '--timeout=300',
                 'cs',
             ],
         ], $runner->commands);
@@ -215,6 +218,7 @@ class DockerComposePluginTest extends TestCase
                 'composer',
                 'run-script',
                 '--dev',
+                '--timeout=300',
                 'cs',
             ],
         ], $runner->commands);
@@ -534,6 +538,26 @@ class DockerComposePluginTest extends TestCase
         $command = (new DockerComposeCommandBuilder())->buildScriptCommand($config, $event, false);
 
         self::assertSame(['--', '', '1'], array_slice($command, -3));
+    }
+
+    public function testCommandBuilderForwardsComposerProcessTimeout(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $previousTimeout = ProcessExecutor::getTimeout();
+
+        ProcessExecutor::setTimeout(42);
+        try {
+            $config = DockerComposerConfig::fromComposer($composer);
+            $event = new ScriptEvent('test', $composer, $io);
+
+            $command = (new DockerComposeCommandBuilder())->buildScriptCommand($config, $event, false);
+        } finally {
+            ProcessExecutor::setTimeout($previousTimeout);
+        }
+
+        self::assertSame('--timeout=42', $command[count($command) - 2]);
     }
 
     public function testCommandBuilderRejectsNonScalarArguments(): void
