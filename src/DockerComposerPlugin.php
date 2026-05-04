@@ -20,6 +20,7 @@ use Composer\EventDispatcher\ScriptExecutionException;
 use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
+use Composer\Util\ProcessExecutor;
 
 /**
  * Redirects Composer scripts into a configured Docker Compose service.
@@ -212,9 +213,10 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
             $startupKey = $this->getExecServiceStartupKey($config);
             if (! isset($this->startedExecServices[$startupKey])) {
-                $exitCode = $runner->run($this->commandBuilder->buildUpCommand($config));
+                $upCommand = $this->commandBuilder->buildUpCommand($config);
+                $exitCode = $runner->run($upCommand);
                 if ($exitCode !== 0) {
-                    $this->throwScriptExecutionException($runner, $exitCode);
+                    $this->throwScriptExecutionException($runner, $exitCode, 'up', $upCommand);
                 }
 
                 $this->startedExecServices[$startupKey] = true;
@@ -222,13 +224,14 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $isInteractive = $event->getIO()->isInteractive() && $runner->supportsTty();
-        $exitCode = $runner->run($this->commandBuilder->buildScriptCommand(
+        $scriptCommand = $this->commandBuilder->buildScriptCommand(
             $config,
             $event,
             $isInteractive,
-        ), $isInteractive);
+        );
+        $exitCode = $runner->run($scriptCommand, $isInteractive);
         if ($exitCode !== 0) {
-            $this->throwScriptExecutionException($runner, $exitCode);
+            $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $scriptCommand);
         }
     }
 
@@ -250,14 +253,32 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         ]);
     }
 
-    private function throwScriptExecutionException(ProcessRunner $runner, int $exitCode): void
+    /**
+     * @param list<string> $command
+     */
+    private function throwScriptExecutionException(ProcessRunner $runner, int $exitCode, string $phase, array $command): void
     {
-        $errorOutput = $runner->getErrorOutput();
-        $message = $errorOutput === ''
-            ? 'Docker Compose command failed.'
-            : 'Error Output: ' . $errorOutput;
+        $message = sprintf(
+            "Docker Compose %s command failed with exit code %d.\nCommand: %s",
+            $phase,
+            $exitCode,
+            $this->formatCommand($command),
+        );
+
+        $errorOutput = trim($runner->getErrorOutput());
+        if ($errorOutput !== '') {
+            $message .= "\nError Output: " . $errorOutput;
+        }
 
         throw new ScriptExecutionException($message, $exitCode);
+    }
+
+    /**
+     * @param list<string> $command
+     */
+    private function formatCommand(array $command): string
+    {
+        return implode(' ', array_map([ProcessExecutor::class, 'escape'], $command));
     }
 
     private function isNestedScript(ScriptEvent $event): bool

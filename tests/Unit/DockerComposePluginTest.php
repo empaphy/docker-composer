@@ -395,11 +395,13 @@ class DockerComposePluginTest extends TestCase
 
         $plugin->activate($composer, $io);
 
-        $this->expectException(ScriptExecutionException::class);
-        $this->expectExceptionCode(7);
-        $this->expectExceptionMessage('docker failed');
+        $exception = $this->assertScriptExecutionFails($plugin, $event);
 
-        $plugin->onScript($event);
+        self::assertSame(7, $exception->getCode());
+        self::assertStringContainsString('Docker Compose exec command failed with exit code 7.', $exception->getMessage());
+        self::assertStringContainsString('Command:', $exception->getMessage());
+        self::assertStringContainsString('run-script', $exception->getMessage());
+        self::assertStringContainsString('Error Output: docker failed', $exception->getMessage());
     }
 
     public function testDockerUpFailurePreservesExitCode(): void
@@ -413,11 +415,36 @@ class DockerComposePluginTest extends TestCase
 
         $plugin->activate($composer, $io);
 
-        $this->expectException(ScriptExecutionException::class);
-        $this->expectExceptionCode(7);
-        $this->expectExceptionMessage('up failed');
+        $exception = $this->assertScriptExecutionFails($plugin, $event);
 
-        $plugin->onScript($event);
+        self::assertSame(7, $exception->getCode());
+        self::assertStringContainsString('Docker Compose up command failed with exit code 7.', $exception->getMessage());
+        self::assertStringContainsString('Command:', $exception->getMessage());
+        self::assertStringContainsString('up', $exception->getMessage());
+        self::assertStringContainsString('Error Output: up failed', $exception->getMessage());
+    }
+
+    public function testDockerRunFailureReportsRunPhase(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'mode' => 'run',
+            ],
+        ]);
+        $runner = new TestProcessRunner([7], 'run failed');
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('test', $composer, $io);
+
+        $plugin->activate($composer, $io);
+
+        $exception = $this->assertScriptExecutionFails($plugin, $event);
+
+        self::assertSame(7, $exception->getCode());
+        self::assertStringContainsString('Docker Compose run command failed with exit code 7.', $exception->getMessage());
+        self::assertStringContainsString('Command:', $exception->getMessage());
+        self::assertStringContainsString('run', $exception->getMessage());
+        self::assertStringContainsString('Error Output: run failed', $exception->getMessage());
     }
 
     public function testDockerFailureUsesGenericMessageWithoutErrorOutput(): void
@@ -431,11 +458,12 @@ class DockerComposePluginTest extends TestCase
 
         $plugin->activate($composer, $io);
 
-        $this->expectException(ScriptExecutionException::class);
-        $this->expectExceptionCode(7);
-        $this->expectExceptionMessage('Docker Compose command failed.');
+        $exception = $this->assertScriptExecutionFails($plugin, $event);
 
-        $plugin->onScript($event);
+        self::assertSame(7, $exception->getCode());
+        self::assertStringContainsString('Docker Compose exec command failed with exit code 7.', $exception->getMessage());
+        self::assertStringContainsString('Command:', $exception->getMessage());
+        self::assertStringNotContainsString('Error Output:', $exception->getMessage());
     }
 
     public function testInvalidKnownConfigFailsStrictly(): void
@@ -659,6 +687,17 @@ class DockerComposePluginTest extends TestCase
         } catch (\InvalidArgumentException $exception) {
             self::assertSame($message, $exception->getMessage());
         }
+    }
+
+    private function assertScriptExecutionFails(DockerComposerPlugin $plugin, ScriptEvent $event): ScriptExecutionException
+    {
+        try {
+            $plugin->onScript($event);
+        } catch (ScriptExecutionException $exception) {
+            return $exception;
+        }
+
+        self::fail('Expected Docker script execution to fail.');
     }
 }
 
