@@ -1,0 +1,54 @@
+name: Integration Tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: Operating System
+        required: false
+        type: string
+        default: ubuntu
+      composer-version:
+        description: Composer version to exercise through the integration fixture
+        required: false
+        type: string
+        default: v2
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    name: Docker Compose / Composer ${{ inputs.composer-version }}
+    runs-on: ${{ inputs.os }}-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP and Install Composer Packages
+        uses: ./.github/actions/setup
+        with:
+          php-version: '8.3'
+          composer-version: 'v2'
+
+      - name: Setup Composer ${{ inputs.composer-version }} Under Test
+        if: inputs.composer-version != 'v2'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:${{ inputs.composer-version }}
+          coverage: none
+
+      - name: Show Tool Versions
+        shell: bash
+        run: |
+          php --version
+          composer --version
+          docker --version
+          docker compose version
+
+      - name: Run Docker Composer Integration Tests
+        shell: bash
+        env:
+          DOCKER_COMPOSER_INTEGRATION: '1'
+        run: vendor/bin/phpunit --testsuite Integration

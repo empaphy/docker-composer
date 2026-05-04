@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-use PHPUnit\Framework\Attributes\CoversClass;use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 
 require __DIR__ . '/../vendor/autoload.php';
 

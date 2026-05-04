@@ -7,6 +7,10 @@ inputs:
     description: PHP Version
     required: false
     default: 'pre-installed'
+  composer-version:
+    description: Composer Version
+    required: false
+    default: 'v2'
 
 runs:
   using: composite
@@ -15,7 +19,7 @@ runs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ inputs.php-version }}
-        tools: composer:v2
+        tools: composer:${{ inputs.composer-version }}
         coverage: xdebug
 
     - name: Validate Composer Config

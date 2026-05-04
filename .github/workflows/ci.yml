@@ -25,3 +25,15 @@ jobs:
     uses: ./.github/workflows/unit-tests.yml
     with:
       os: ${{ matrix.os }}
+
+  integration-tests:
+    name: Integration Tests
+    strategy:
+      matrix:
+        os: [ubuntu]
+        composer-version: ['1.10.27', '2.2.27', 'v2']
+      fail-fast: false
+    uses: ./.github/workflows/integration-tests.yml
+    with:
+      os: ${{ matrix.os }}
+      composer-version: ${{ matrix.composer-version }}
