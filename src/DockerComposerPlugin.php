@@ -40,6 +40,9 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 
     private bool $unknownConfigWarningWritten = false;
 
+    /** @var array<string, true> */
+    private array $startedExecServices = [];
+
     public function __construct(
         ?ProcessRunner $processRunner = null,
         ?ContainerDetector $containerDetector = null,
@@ -207,9 +210,14 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $runner = $this->getProcessRunner($event);
 
         if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
-            $exitCode = $runner->run($this->commandBuilder->buildUpCommand($config));
-            if ($exitCode !== 0) {
-                $this->throwScriptExecutionException($runner, $exitCode);
+            $startupKey = $this->getExecServiceStartupKey($config);
+            if (! isset($this->startedExecServices[$startupKey])) {
+                $exitCode = $runner->run($this->commandBuilder->buildUpCommand($config));
+                if ($exitCode !== 0) {
+                    $this->throwScriptExecutionException($runner, $exitCode);
+                }
+
+                $this->startedExecServices[$startupKey] = true;
             }
         }
 
@@ -231,6 +239,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         return $this->processRunner;
+    }
+
+    private function getExecServiceStartupKey(DockerComposerConfig $config): string
+    {
+        return serialize([
+            $config->getService(),
+            $config->getComposeFiles(),
+            $config->getProjectDirectory(),
+        ]);
     }
 
     private function throwScriptExecutionException(ProcessRunner $runner, int $exitCode): void

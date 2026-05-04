@@ -109,6 +109,77 @@ class DockerComposePluginTest extends TestCase
         self::assertStringContainsString('Running test in Docker Compose service php.', $io->getOutput());
     }
 
+    public function testExecModeStartsServiceOnlyOncePerComposeTarget(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            [
+                'test' => ['host-command'],
+                'cs' => ['host-command'],
+            ],
+            [
+                'docker-composer' => [
+                    'service' => 'php',
+                    'compose-files' => ['docker-compose.yaml'],
+                    'project-directory' => '.',
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript(new ScriptEvent('test', $composer, $io));
+        $plugin->onScript(new ScriptEvent('cs', $composer, $io));
+
+        self::assertSame([
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'up',
+                '-d',
+                'php',
+            ],
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'exec',
+                '-T',
+                '--env',
+                'DOCKER_COMPOSER_INSIDE=1',
+                'php',
+                'composer',
+                'run-script',
+                '--no-dev',
+                'test',
+            ],
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'exec',
+                '-T',
+                '--env',
+                'DOCKER_COMPOSER_INSIDE=1',
+                'php',
+                'composer',
+                'run-script',
+                '--no-dev',
+                'cs',
+            ],
+        ], $runner->commands);
+    }
+
     public function testRunModeUsesOneOffContainerWithoutAutoUp(): void
     {
         [$composer, $io] = $this->createComposer(
