@@ -12,6 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  coding-style:
+    name: Coding Style
+    uses: ./.github/workflows/coding-style.yml
+
   static-analysis:
     name: Static Analysis
     uses: ./.github/workflows/static-analysis.yml

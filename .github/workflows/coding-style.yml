@@ -1,0 +1,37 @@
+name: Coding Style
+
+on:
+  workflow_call:
+
+permissions:
+  checks:        write
+  contents:      read
+  issues:        read
+  pull-requests: write
+
+jobs:
+  php-cs-fixer:
+    name: PHP CS Fixer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP and Install Composer Packages
+        uses: ./.github/actions/setup
+
+      - name: Cache PHP CS Fixer
+        uses: actions/cache@v5
+        with:
+          path: var/cache/php-cs-fixer
+          key: php-cs-fixer-${{ hashFiles('.php-cs-fixer.dist.php') }}-${{ hashFiles('src/**/*.php', 'tests/**/*.php') }}
+          restore-keys: |
+            php-cs-fixer-${{ hashFiles('.php-cs-fixer.dist.php') }}-${{ hashFiles('src/**/*.php', 'tests/**/*.php') }}
+            php-cs-fixer-${{ hashFiles('.php-cs-fixer.dist.php') }}-
+            php-cs-fixer-
+
+      - name: Run PHP CS Fixer
+        id: php-cs-fixer
+        shell: bash
+        #language=bash
+        run: vendor/bin/php-cs-fixer check
