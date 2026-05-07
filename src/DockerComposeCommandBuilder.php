@@ -84,10 +84,15 @@ class DockerComposeCommandBuilder
         $command = [
             'composer',
             'run-script',
-            $event->isDevMode() ? '--dev' : '--no-dev',
-            sprintf('--timeout=%d', ProcessExecutor::getTimeout()),
-            $event->getName(),
         ];
+
+        if (! $event->getIO()->isInteractive()) {
+            $command[] = '--no-interaction';
+        }
+
+        $command[] = $event->isDevMode() ? '--dev' : '--no-dev';
+        $command[] = sprintf('--timeout=%d', ProcessExecutor::getTimeout());
+        $command[] = $event->getName();
 
         $arguments = $event->getArguments();
         if ($arguments === []) {

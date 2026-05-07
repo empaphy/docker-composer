@@ -99,6 +99,7 @@ class DockerComposePluginTest extends TestCase
                 'php',
                 'composer',
                 'run-script',
+                '--no-interaction',
                 '--no-dev',
                 '--timeout=300',
                 'test',
@@ -158,6 +159,7 @@ class DockerComposePluginTest extends TestCase
                 'php',
                 'composer',
                 'run-script',
+                '--no-interaction',
                 '--no-dev',
                 '--timeout=300',
                 'test',
@@ -176,6 +178,7 @@ class DockerComposePluginTest extends TestCase
                 'php',
                 'composer',
                 'run-script',
+                '--no-interaction',
                 '--no-dev',
                 '--timeout=300',
                 'cs',
@@ -217,6 +220,7 @@ class DockerComposePluginTest extends TestCase
                 'php',
                 'composer',
                 'run-script',
+                '--no-interaction',
                 '--dev',
                 '--timeout=300',
                 'cs',
@@ -289,6 +293,7 @@ class DockerComposePluginTest extends TestCase
         self::assertTrue($event->isPropagationStopped());
         self::assertSame([false, true], $runner->tty);
         self::assertNotContains('-T', $runner->commands[1]);
+        self::assertNotContains('--no-interaction', $runner->commands[1]);
     }
 
     public function testInteractiveScriptsUseNonTtyExecutionWhenRunnerDoesNotSupportTty(): void
@@ -639,7 +644,7 @@ class DockerComposePluginTest extends TestCase
     public function testComposerProcessRunnerDelegatesToProcessExecutor(): void
     {
         $io = new BufferIO();
-        $runner = new ComposerProcessRunner($io);
+        $runner = new ComposerProcessRunner($io, static fn(): bool => true);
         $processExecutor = new TestProcessExecutor(3, 4, 'executor error');
         $property = new \ReflectionProperty($runner, 'processExecutor');
         $property->setValue($runner, $processExecutor);
@@ -652,6 +657,22 @@ class DockerComposePluginTest extends TestCase
 
         self::assertSame([$expectedCommand], $processExecutor->commands);
         self::assertSame([$expectedCommand], $processExecutor->ttyCommands);
+    }
+
+    public function testComposerProcessRunnerFallsBackWhenCurrentProcessDoesNotSupportTty(): void
+    {
+        $io = new BufferIO();
+        $runner = new ComposerProcessRunner($io, static fn(): bool => false);
+        $processExecutor = new TestProcessExecutor(3, 4, 'executor error');
+        $property = new \ReflectionProperty($runner, 'processExecutor');
+        $property->setValue($runner, $processExecutor);
+
+        self::assertFalse($runner->supportsTty());
+        self::assertSame(3, $runner->run(['docker', 'compose'], true));
+        $expectedCommand = implode(' ', array_map([ProcessExecutor::class, 'escape'], ['docker', 'compose']));
+
+        self::assertSame([$expectedCommand], $processExecutor->commands);
+        self::assertSame([], $processExecutor->ttyCommands);
     }
 
     /**

@@ -143,17 +143,27 @@ class DockerComposerIntegrationTest extends TestCase
         }
 
         file_put_contents($projectDirectory . '/composer.json', $encodedComposerJson . PHP_EOL);
-        file_put_contents($projectDirectory . '/docker-compose.yaml', <<<'YAML'
+        file_put_contents($projectDirectory . '/docker-compose.yaml', sprintf(<<<'YAML'
 services:
   php:
-    image: composer:2
+    image: %s
     command: ['sleep', 'infinity']
     working_dir: /usr/src/app
     volumes:
       - { type: bind, source: '.', target: '/usr/src/app' }
-YAML);
+YAML, $this->getComposerImage()));
 
         return $projectDirectory;
+    }
+
+    private function getComposerImage(): string
+    {
+        $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
+        if ($composerVersion === false || $composerVersion === '' || $composerVersion === 'v2') {
+            return 'composer:2';
+        }
+
+        return 'composer:' . $composerVersion;
     }
 
     private function installProject(string $projectDirectory): void
