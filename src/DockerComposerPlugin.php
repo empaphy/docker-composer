@@ -1,6 +1,8 @@
 <?php
 
 /**
+ * Defines the Composer plugin entrypoint.
+ *
  * @copyright 2026 The Empaphy Project
  * @author    Alwin Garside <alwin@garsi.de>
  * @license   MIT
@@ -27,23 +29,62 @@ use Composer\Util\ProcessExecutor;
  */
 class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 {
+    /**
+     * Stores Composer IO for plugin messages.
+     */
     private ?IOInterface $io = null;
 
+    /**
+     * Stores parsed Docker Composer configuration.
+     */
     private ?DockerComposerConfig $config = null;
 
+    /**
+     * Stores the process runner used for Docker commands.
+     */
     private ?ProcessRunner $processRunner;
 
+    /**
+     * Detects whether the current process already runs in a container.
+     */
     private ContainerDetector $containerDetector;
 
+    /**
+     * Builds Docker Compose command arguments.
+     */
     private DockerComposeCommandBuilder $commandBuilder;
 
+    /**
+     * Tracks whether the missing configuration warning was written.
+     */
     private bool $missingConfigWarningWritten = false;
 
+    /**
+     * Tracks whether unknown configuration warnings were written.
+     */
     private bool $unknownConfigWarningWritten = false;
 
-    /** @var array<string, true> */
+    /**
+     * Tracks services started for Docker Compose exec mode.
+     *
+     * Stores startup keys for services already started during this process.
+     *
+     * @var array<string, true>
+     */
     private array $startedExecServices = [];
 
+    /**
+     * Creates a Composer plugin with optional collaborators.
+     *
+     * @param  ProcessRunner|null  $processRunner
+     *   The runner for Docker Compose commands, or `null` for the default.
+     *
+     * @param  ContainerDetector|null  $containerDetector
+     *   The container detector, or `null` for environment-based detection.
+     *
+     * @param  DockerComposeCommandBuilder|null  $commandBuilder
+     *   The command builder, or `null` for the default builder.
+     */
     public function __construct(
         ?ProcessRunner $processRunner = null,
         ?ContainerDetector $containerDetector = null,
@@ -55,7 +96,16 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * Apply plugin modifications to Composer
+     * Applies plugin modifications to Composer.
+     *
+     * @param  Composer  $composer
+     *   The Composer instance being activated.
+     *
+     * @param  IOInterface  $io
+     *   The Composer IO used for plugin output.
+     *
+     * @return void
+     *   Returns nothing.
      */
     public function activate(Composer $composer, IOInterface $io)
     {
@@ -68,11 +118,20 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * Remove any hooks from Composer
+     * Removes any hooks from Composer.
      *
      * This will be called when a plugin is deactivated before being
      * uninstalled, but also before it gets upgraded to a new version
      * so the old one can be deactivated and the new one activated.
+     *
+     * @param  Composer  $composer
+     *   The Composer instance being deactivated.
+     *
+     * @param  IOInterface  $io
+     *   The Composer IO available during deactivation.
+     *
+     * @return void
+     *   Returns nothing.
      */
     public function deactivate(Composer $composer, IOInterface $io)
     {
@@ -83,9 +142,18 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * Prepare the plugin to be uninstalled
+     * Prepares the plugin to be uninstalled.
      *
      * This will be called after deactivate.
+     *
+     * @param  Composer  $composer
+     *   The Composer instance being uninstalled from.
+     *
+     * @param  IOInterface  $io
+     *   The Composer IO available during uninstall.
+     *
+     * @return void
+     *   Returns nothing.
      */
     public function uninstall(Composer $composer, IOInterface $io)
     {
@@ -109,13 +177,25 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   - array('eventName' => array(array('methodName1', $priority), array('methodName2'))
      *
      * @return array<string, string|array{0: string, 1?: int}|array<array{0: string, 1?: int}>>
-     *   The event names to listen to
+     *   Returns no static subscriptions because script listeners are registered after activation.
      */
     public static function getSubscribedEvents()
     {
         return [];
     }
 
+    /**
+     * Redirects a Composer script event into Docker Compose.
+     *
+     * @param  ScriptEvent  $event
+     *   The Composer script event to inspect and possibly redirect.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown when a Docker Compose command exits with failure.
+     */
     public function onScript(ScriptEvent $event): void
     {
         if ($this->isNestedScript($event) || $this->isDisabledByEnvironment() || $this->containerDetector->isInsideContainer()) {
@@ -138,6 +218,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $event->stopPropagation();
     }
 
+    /**
+     * Registers listeners for configured Composer scripts.
+     *
+     * @param  Composer  $composer
+     *   The Composer instance whose package scripts should be watched.
+     *
+     * @return void
+     *   Returns nothing.
+     */
     private function registerScriptListeners(Composer $composer): void
     {
         $scriptNames = [];
@@ -160,6 +249,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
     }
 
+    /**
+     * Gets cached plugin configuration.
+     *
+     * @param  ScriptEvent  $event
+     *   The script event used to lazily access Composer.
+     *
+     * @return DockerComposerConfig
+     *   Returns parsed Docker Composer configuration.
+     */
     private function getConfig(ScriptEvent $event): DockerComposerConfig
     {
         if ($this->config === null) {
@@ -169,6 +267,12 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         return $this->config;
     }
 
+    /**
+     * Writes warnings for ignored configuration keys.
+     *
+     * @return void
+     *   Returns nothing.
+     */
     private function writeUnknownConfigWarning(): void
     {
         if ($this->unknownConfigWarningWritten || $this->config === null || $this->io === null) {
@@ -185,6 +289,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $this->unknownConfigWarningWritten = true;
     }
 
+    /**
+     * Writes the missing service configuration warning.
+     *
+     * @param  IOInterface  $io
+     *   The Composer IO that receives the warning.
+     *
+     * @return void
+     *   Returns nothing.
+     */
     private function writeMissingConfigWarning(IOInterface $io): void
     {
         if ($this->missingConfigWarningWritten) {
@@ -197,6 +310,18 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $this->missingConfigWarningWritten = true;
     }
 
+    /**
+     * Writes the script redirection notice.
+     *
+     * @param  ScriptEvent  $event
+     *   The script event being redirected.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The configuration that provides the target service.
+     *
+     * @return void
+     *   Returns nothing.
+     */
     private function writeRedirectNotice(ScriptEvent $event, DockerComposerConfig $config): void
     {
         $event->getIO()->writeError(sprintf(
@@ -206,6 +331,21 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         ));
     }
 
+    /**
+     * Runs a Composer script inside Docker Compose.
+     *
+     * @param  ScriptEvent  $event
+     *   The Composer script event being executed.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration used to build commands.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown when Docker Compose startup or script execution fails.
+     */
     private function runInDocker(ScriptEvent $event, DockerComposerConfig $config): void
     {
         $runner = $this->getProcessRunner($event);
@@ -235,6 +375,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
     }
 
+    /**
+     * Gets the process runner for Docker commands.
+     *
+     * @param  ScriptEvent  $event
+     *   The script event used to create a default Composer runner.
+     *
+     * @return ProcessRunner
+     *   Returns the configured or lazily created process runner.
+     */
     private function getProcessRunner(ScriptEvent $event): ProcessRunner
     {
         if ($this->processRunner === null) {
@@ -244,6 +393,15 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         return $this->processRunner;
     }
 
+    /**
+     * Builds a cache key for exec-mode service startup.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration that identifies the service.
+     *
+     * @return string
+     *   Returns a stable serialized key for the service startup command.
+     */
     private function getExecServiceStartupKey(DockerComposerConfig $config): string
     {
         return serialize([
@@ -254,7 +412,25 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * @param list<string> $command
+     * Throws a Composer script exception for a failed Docker command.
+     *
+     * @param  ProcessRunner  $runner
+     *   The runner that contains the latest process error output.
+     *
+     * @param  int  $exitCode
+     *   The process exit code returned by Docker Compose.
+     *
+     * @param  string  $phase
+     *   The Docker Compose phase that failed.
+     *
+     * @param  list<string>  $command
+     *   The Docker Compose command arguments that failed.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Always thrown with the formatted command failure.
      */
     private function throwScriptExecutionException(ProcessRunner $runner, int $exitCode, string $phase, array $command): void
     {
@@ -274,18 +450,39 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * @param list<string> $command
+     * Formats command arguments for shell output.
+     *
+     * @param  list<string>  $command
+     *   The raw command arguments to escape.
+     *
+     * @return string
+     *   Returns a shell-escaped command line for diagnostics.
      */
     private function formatCommand(array $command): string
     {
         return implode(' ', array_map([ProcessExecutor::class, 'escape'], $command));
     }
 
+    /**
+     * Checks whether a script event was triggered by another Composer event.
+     *
+     * @param  ScriptEvent  $event
+     *   The script event to inspect.
+     *
+     * @return bool
+     *   Returns `true` when __event__ is nested under another Composer event.
+     */
     private function isNestedScript(ScriptEvent $event): bool
     {
         return $event->getOriginatingEvent() instanceof Event;
     }
 
+    /**
+     * Checks whether environment settings disable Docker redirection.
+     *
+     * @return bool
+     *   Returns `true` when `DOCKER_COMPOSER_DISABLE` is truthy.
+     */
     private function isDisabledByEnvironment(): bool
     {
         $value = getenv('DOCKER_COMPOSER_DISABLE');

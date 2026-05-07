@@ -1,6 +1,8 @@
 <?php
 
 /**
+ * Defines environment-based container detection.
+ *
  * @copyright 2026 The Empaphy Project
  * @author    Alwin Garside <alwin@garsi.de>
  * @license   MIT
@@ -11,21 +13,46 @@ declare(strict_types=1);
 
 namespace empaphy\docker_composer;
 
+/**
+ * Detects container execution from environment variables and runtime files.
+ */
 final class EnvironmentContainerDetector implements ContainerDetector
 {
-    /** @var callable(string): (string|false) */
+    /**
+     * Reads environment variables.
+     *
+     * @var callable(string): (string|false)
+     *   Returns an environment value or `false` when absent.
+     */
     private $getEnv;
 
-    /** @var callable(string): bool */
+    /**
+     * Checks whether a filesystem path exists.
+     *
+     * @var callable(string): bool
+     *   Returns `true` when the path exists.
+     */
     private $fileExists;
 
-    /** @var callable(string): (string|false) */
+    /**
+     * Reads file contents.
+     *
+     * @var callable(string): (string|false)
+     *   Returns file contents or `false` when unreadable.
+     */
     private $fileGetContents;
 
     /**
-     * @param null|callable(string): (string|false) $getEnv
-     * @param null|callable(string): bool           $fileExists
-     * @param null|callable(string): (string|false) $fileGetContents
+     * Creates an environment-based container detector.
+     *
+     * @param  (callable(string): (string|false))|null  $getEnv
+     *   The environment reader, or `null` for `getenv`.
+     *
+     * @param  (callable(string): bool)|null  $fileExists
+     *   The path existence checker, or `null` for `file_exists`.
+     *
+     * @param  (callable(string): (string|false))|null  $fileGetContents
+     *   The file reader, or `null` for `file_get_contents`.
      */
     public function __construct(
         ?callable $getEnv = null,
@@ -37,6 +64,12 @@ final class EnvironmentContainerDetector implements ContainerDetector
         $this->fileGetContents = $fileGetContents ?? static fn(string $path): string|false => @file_get_contents($path);
     }
 
+    /**
+     * Checks whether the current process runs inside a container.
+     *
+     * @return bool
+     *   Returns `true` when a container marker is detected.
+     */
     public function isInsideContainer(): bool
     {
         $marker = ($this->getEnv)('DOCKER_COMPOSER_INSIDE');
