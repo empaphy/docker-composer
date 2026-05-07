@@ -12,15 +12,31 @@ declare(strict_types=1);
 namespace empaphy\docker_composer;
 
 use Composer\IO\IOInterface;
+use Composer\Util\Platform;
 use Composer\Util\ProcessExecutor;
 
+/**
+ * Runs commands through Composer's process executor.
+ */
 final class ComposerProcessRunner implements ProcessRunner
 {
+    /**
+     * Executes escaped shell commands.
+     */
     private ProcessExecutor $processExecutor;
 
-    /** @var callable(): bool */
+    /**
+     * Detects TTY support for interactive commands.
+     *
+     * @var callable(): bool
+     */
     private $ttyDetector;
 
+    /**
+     * Creates a Composer-backed process runner.
+     *
+     * @param null|callable(): bool $ttyDetector
+     */
     public function __construct(IOInterface $io, ?callable $ttyDetector = null)
     {
         $this->processExecutor = new ProcessExecutor($io);
@@ -28,6 +44,8 @@ final class ComposerProcessRunner implements ProcessRunner
     }
 
     /**
+     * Runs a command with optional TTY passthrough.
+     *
      * @param list<string> $command
      */
     public function run(array $command, bool $tty = false): int
@@ -40,11 +58,17 @@ final class ComposerProcessRunner implements ProcessRunner
         return $this->processExecutor->execute($escapedCommand);
     }
 
+    /**
+     * Gets the last process error output.
+     */
     public function getErrorOutput(): string
     {
         return $this->processExecutor->getErrorOutput();
     }
 
+    /**
+     * Checks whether TTY execution is available.
+     */
     public function supportsTty(): bool
     {
         return (new \ReflectionObject($this->processExecutor))->hasMethod('executeTty')
@@ -52,6 +76,8 @@ final class ComposerProcessRunner implements ProcessRunner
     }
 
     /**
+     * Escapes command arguments for Composer's shell executor.
+     *
      * @param list<string> $command
      */
     private function escapeCommand(array $command): string
@@ -59,25 +85,15 @@ final class ComposerProcessRunner implements ProcessRunner
         return implode(' ', array_map([ProcessExecutor::class, 'escape'], $command));
     }
 
+    /**
+     * Detects TTY support in the current Composer process.
+     */
     private static function detectTtySupport(): bool
     {
-        $platformClass = 'Composer\\Util\\Platform';
-        if (class_exists($platformClass) && is_callable([$platformClass, 'isTty'])) {
-            return $platformClass::isTty();
+        if (class_exists(Platform::class) && is_callable([Platform::class, 'isTty'])) {
+            return Platform::isTty();
         }
 
-        if (! defined('STDOUT')) {
-            return false;
-        }
-
-        if (function_exists('stream_isatty')) {
-            return stream_isatty(STDOUT);
-        }
-
-        if (function_exists('posix_isatty')) {
-            return posix_isatty(STDOUT);
-        }
-
-        return false;
+        return defined('STDOUT') && stream_isatty(STDOUT);
     }
 }

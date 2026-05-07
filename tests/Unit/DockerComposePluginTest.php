@@ -16,6 +16,7 @@ use Composer\EventDispatcher\ScriptExecutionException;
 use Composer\IO\BufferIO;
 use Composer\Package\RootPackage;
 use Composer\Script\Event as ScriptEvent;
+use Composer\Util\Platform;
 use Composer\Util\ProcessExecutor;
 use empaphy\docker_composer\ComposerProcessRunner;
 use empaphy\docker_composer\ContainerDetector;
@@ -26,6 +27,8 @@ use empaphy\docker_composer\EnvironmentContainerDetector;
 use empaphy\docker_composer\ProcessRunner;
 use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Symfony\Component\Console\Output\StreamOutput;
 use Tests\TestCase;
 
@@ -673,6 +676,35 @@ class DockerComposePluginTest extends TestCase
 
         self::assertSame([$expectedCommand], $processExecutor->commands);
         self::assertSame([], $processExecutor->ttyCommands);
+    }
+
+    public function testComposerProcessRunnerUsesComposerPlatformTtyDetection(): void
+    {
+        $method = new \ReflectionMethod(ComposerProcessRunner::class, 'detectTtySupport');
+
+        self::assertSame(Platform::isTty(), $method->invoke(null));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testComposerProcessRunnerUsesStreamFallbackWithoutComposerPlatform(): void
+    {
+        $method = new \ReflectionMethod(ComposerProcessRunner::class, 'detectTtySupport');
+        $autoloaders = spl_autoload_functions() ?: [];
+
+        foreach ($autoloaders as $autoload) {
+            spl_autoload_unregister($autoload);
+        }
+
+        try {
+            $supportsTty = $method->invoke(null);
+        } finally {
+            foreach ($autoloaders as $autoload) {
+                spl_autoload_register($autoload);
+            }
+        }
+
+        self::assertSame(defined('STDOUT') && stream_isatty(STDOUT), $supportsTty);
     }
 
     /**
