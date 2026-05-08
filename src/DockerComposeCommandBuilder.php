@@ -41,6 +41,23 @@ class DockerComposeCommandBuilder
     }
 
     /**
+     * Builds the Docker Compose running services command.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration that provides service options.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose ps`.
+     */
+    public function buildRunningServicesCommand(DockerComposerConfig $config): array
+    {
+        return array_merge(
+            $this->composeBase($config),
+            ['ps', '--status', 'running', '--services', $config->getService()],
+        );
+    }
+
+    /**
      * Builds the Docker Compose script execution command.
      *
      * @param  DockerComposerConfig  $config

@@ -20,7 +20,7 @@ use Composer\Util\ProcessExecutor;
 /**
  * Runs commands through Composer's process executor.
  */
-final class ComposerProcessRunner implements ProcessRunner
+final class ComposerProcessRunner implements OutputCapturingProcessRunner
 {
     /**
      * Executes escaped shell commands.
@@ -70,6 +70,25 @@ final class ComposerProcessRunner implements ProcessRunner
         }
 
         return $this->processExecutor->execute($escapedCommand);
+    }
+
+    /**
+     * Runs a command while capturing standard output.
+     *
+     * @param  list<string>  $command
+     *   The command arguments to escape and execute.
+     *
+     * @param  string  $output
+     *   The captured standard output.
+     *
+     * @return int
+     *   Returns the process exit code.
+     */
+    public function runWithOutput(array $command, string &$output): int
+    {
+        $output = '';
+
+        return $this->processExecutor->execute($this->escapeCommand($command), $output);
     }
 
     /**

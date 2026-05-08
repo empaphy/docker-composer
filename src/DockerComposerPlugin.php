@@ -353,12 +353,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
             $startupKey = $this->getExecServiceStartupKey($config);
             if (! isset($this->startedExecServices[$startupKey])) {
-                $upCommand = $this->commandBuilder->buildUpCommand($config);
-                $exitCode = $runner->run($upCommand);
-                if ($exitCode !== 0) {
-                    $this->throwScriptExecutionException($runner, $exitCode, 'up', $upCommand);
-                }
-
+                $this->ensureExecServiceStarted($runner, $config);
                 $this->startedExecServices[$startupKey] = true;
             }
         }
@@ -373,6 +368,72 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         if ($exitCode !== 0) {
             $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $scriptCommand);
         }
+    }
+
+    /**
+     * Ensures the configured service can receive `docker compose exec`.
+     *
+     * @param  ProcessRunner  $runner
+     *   The runner used for Docker Compose commands.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration that identifies the service.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown when Docker Compose startup fails.
+     */
+    private function ensureExecServiceStarted(ProcessRunner $runner, DockerComposerConfig $config): void
+    {
+        if ($this->isExecServiceRunning($runner, $config)) {
+            return;
+        }
+
+        $upCommand = $this->commandBuilder->buildUpCommand($config);
+        $exitCode = $runner->run($upCommand);
+        if ($exitCode !== 0) {
+            $this->throwScriptExecutionException($runner, $exitCode, 'up', $upCommand);
+        }
+    }
+
+    /**
+     * Checks whether the configured exec-mode service is running.
+     *
+     * @param  ProcessRunner  $runner
+     *   The runner used for Docker Compose commands.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration that identifies the service.
+     *
+     * @return bool
+     *   Returns `true` when Docker Compose lists the service as running.
+     */
+    private function isExecServiceRunning(ProcessRunner $runner, DockerComposerConfig $config): bool
+    {
+        if (! $runner instanceof OutputCapturingProcessRunner) {
+            return false;
+        }
+
+        $command = $this->commandBuilder->buildRunningServicesCommand($config);
+        $output = '';
+        if ($runner->runWithOutput($command, $output) !== 0) {
+            return false;
+        }
+
+        $services = preg_split('/\R/', trim($output));
+        if ($services === false) {
+            return false;
+        }
+
+        foreach ($services as $service) {
+            if (trim($service) === $config->getService()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

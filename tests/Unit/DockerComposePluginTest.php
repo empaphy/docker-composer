@@ -24,6 +24,7 @@ use empaphy\docker_composer\DockerComposeCommandBuilder;
 use empaphy\docker_composer\DockerComposerConfig;
 use empaphy\docker_composer\DockerComposerPlugin;
 use empaphy\docker_composer\EnvironmentContainerDetector;
+use empaphy\docker_composer\OutputCapturingProcessRunner;
 use empaphy\docker_composer\ProcessRunner;
 use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -187,6 +188,98 @@ class DockerComposePluginTest extends TestCase
                 'cs',
             ],
         ], $runner->commands);
+    }
+
+    public function testExecModeSkipsAutoUpWhenServiceIsAlreadyRunning(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service' => 'php',
+                    'compose-files' => ['docker-compose.yaml'],
+                    'project-directory' => '.',
+                ],
+            ],
+        );
+        $runner = new TestOutputCapturingProcessRunner([0, 0], outputs: ['php' . PHP_EOL]);
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript(new ScriptEvent('test', $composer, $io));
+
+        self::assertSame([
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'ps',
+                '--status',
+                'running',
+                '--services',
+                'php',
+            ],
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'exec',
+                '-T',
+                '--env',
+                'DOCKER_COMPOSER_INSIDE=1',
+                'php',
+                'composer',
+                'run-script',
+                '--no-interaction',
+                '--no-dev',
+                '--timeout=300',
+                'test',
+            ],
+        ], $runner->commands);
+    }
+
+    public function testExecModeRunsAutoUpWhenServiceIsNotRunning(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            ['docker-composer' => ['service' => 'php']],
+        );
+        $runner = new TestOutputCapturingProcessRunner([0, 0, 0], outputs: ['']);
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript(new ScriptEvent('test', $composer, $io));
+
+        self::assertSame(['ps', 'up', 'exec'], [
+            $runner->commands[0][2],
+            $runner->commands[1][2],
+            $runner->commands[2][2],
+        ]);
+    }
+
+    public function testExecModeRunsAutoUpWhenRunningServiceCheckFails(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            ['docker-composer' => ['service' => 'php']],
+        );
+        $runner = new TestOutputCapturingProcessRunner([7, 0, 0], outputs: ['']);
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript(new ScriptEvent('test', $composer, $io));
+
+        self::assertSame(['ps', 'up', 'exec'], [
+            $runner->commands[0][2],
+            $runner->commands[1][2],
+            $runner->commands[2][2],
+        ]);
     }
 
     public function testRunModeUsesOneOffContainerWithoutAutoUp(): void
@@ -662,6 +755,20 @@ class DockerComposePluginTest extends TestCase
         self::assertSame([$expectedCommand], $processExecutor->ttyCommands);
     }
 
+    public function testComposerProcessRunnerCapturesOutput(): void
+    {
+        $io = new BufferIO();
+        $runner = new ComposerProcessRunner($io, static fn(): bool => true);
+        $processExecutor = new TestProcessExecutor(3, 4, 'executor error', 'captured output');
+        $property = new \ReflectionProperty($runner, 'processExecutor');
+        $property->setValue($runner, $processExecutor);
+
+        $output = '';
+
+        self::assertSame(3, $runner->runWithOutput(['docker', 'compose'], $output));
+        self::assertSame('captured output', $output);
+    }
+
     public function testComposerProcessRunnerFallsBackWhenCurrentProcessDoesNotSupportTty(): void
     {
         $io = new BufferIO();
@@ -766,7 +873,7 @@ final class TestContainerDetector implements ContainerDetector
     }
 }
 
-final class TestProcessRunner implements ProcessRunner
+class TestProcessRunner implements ProcessRunner
 {
     /** @var list<list<string>> */
     public array $commands = [];
@@ -807,8 +914,40 @@ final class TestProcessRunner implements ProcessRunner
     }
 }
 
+final class TestOutputCapturingProcessRunner extends TestProcessRunner implements OutputCapturingProcessRunner
+{
+    /** @var list<string> */
+    private array $outputs;
+
+    /**
+     * @param list<int>    $exitCodes
+     * @param list<string> $outputs
+     */
+    public function __construct(
+        array $exitCodes = [0],
+        string $errorOutput = '',
+        bool $supportsTty = false,
+        array $outputs = [],
+    ) {
+        parent::__construct($exitCodes, $errorOutput, $supportsTty);
+        $this->outputs = $outputs;
+    }
+
+    public function runWithOutput(array $command, string &$output): int
+    {
+        $output = array_shift($this->outputs) ?? '';
+
+        return $this->run($command);
+    }
+}
+
 final class TestCommandBuilder extends DockerComposeCommandBuilder
 {
+    public function buildRunningServicesCommand(DockerComposerConfig $config): array
+    {
+        return ['php', '-r', 'exit(1);'];
+    }
+
     public function buildUpCommand(DockerComposerConfig $config): array
     {
         return ['php', '-r', 'exit(0);'];
@@ -828,10 +967,14 @@ final class TestProcessExecutor extends ProcessExecutor
     /** @var list<string> */
     public array $ttyCommands = [];
 
+    /**
+     * @noinspection PhpMissingParentConstructorInspection
+     */
     public function __construct(
         private int $executeExitCode,
         private int $ttyExitCode,
         private string $testErrorOutput,
+        private string $testOutput = '',
     ) {}
 
     /**
@@ -841,6 +984,7 @@ final class TestProcessExecutor extends ProcessExecutor
     public function execute($command, &$output = null, ?string $cwd = null): int
     {
         $this->commands[] = (string) $command;
+        $output = $this->testOutput;
 
         return $this->executeExitCode;
     }

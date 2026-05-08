@@ -51,7 +51,13 @@ When Composer dispatches a top-level script on the host, the plugin runs the sam
 script inside the configured service and prevents the host-side script from
 continuing.
 
-In `exec` mode, the plugin runs:
+In `exec` mode, the plugin checks whether the service is already running:
+
+```bash
+docker compose ps --status running --services <service>
+```
+
+If the service is not listed, it starts it:
 
 ```bash
 docker compose up -d <service>
