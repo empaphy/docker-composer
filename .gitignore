@@ -9,6 +9,7 @@
 
 .DS_Store
 .git
+.op
 Thumbs.db
 compose.override.yaml
 docker-compose.override.yaml
