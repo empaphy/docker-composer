@@ -141,6 +141,30 @@ class DockerComposePluginTest extends TestCase
         self::assertStringContainsString('Running test in Docker Compose service php-test.', $io->getOutput());
     }
 
+    public function testRedirectNoticeEscapesScriptAndServiceNames(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['bad<error>script</error>' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service' => 'php<error>service</error>',
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('bad<error>script</error>', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript($event);
+
+        self::assertTrue($event->isPropagationStopped());
+        self::assertStringContainsString(
+            'Running bad<error>script</error> in Docker Compose service php<error>service</error>.',
+            $io->getOutput(),
+        );
+    }
+
     public function testScriptServiceOverrideCanConfigureServiceWithoutDefault(): void
     {
         [$composer, $io] = $this->createComposer(

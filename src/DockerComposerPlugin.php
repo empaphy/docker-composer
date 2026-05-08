@@ -333,8 +333,8 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         $event->getIO()->writeError(sprintf(
             '<info>docker-composer:</info> Running <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
-            $event->getName(),
-            $config->getService(),
+            OutputFormatter::escape($event->getName()),
+            OutputFormatter::escape($config->getService()),
         ));
     }
 
