@@ -429,10 +429,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
             return false;
         }
 
-        $services = preg_split('/\R/', trim($output));
-        if ($services === false) {
-            return false;
-        }
+        $services = preg_split('/\R/', trim($output)) ?: [];
 
         foreach ($services as $service) {
             if (trim($service) === $config->getService()) {

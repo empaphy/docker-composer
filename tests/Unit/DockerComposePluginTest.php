@@ -730,6 +730,7 @@ class DockerComposePluginTest extends TestCase
         $this->assertInvalidConfig(['docker-composer' => ['compose-files' => '']], 'extra.docker-composer.compose-files must contain non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => ['script' => true]]], 'extra.docker-composer.exclude must be a list of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => [1]]], 'extra.docker-composer.exclude must contain only non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['script-services' => 'php']], 'extra.docker-composer.script-services must be an object of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['php']]], 'extra.docker-composer.script-services must be an object of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['' => 'php']]], 'extra.docker-composer.script-services must use non-empty string keys.');
         $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['test' => '']]], 'extra.docker-composer.script-services must contain only non-empty strings.');
