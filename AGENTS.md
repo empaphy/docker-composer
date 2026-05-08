@@ -4,7 +4,7 @@
 - Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`.
   - Include descriptive `@param` and `@return` tags for all argument and return types, and `@var` tags for all parameters.
 - In commit messages use conventional commits and provide justification of the changes in the body.
-- In all interactions, thoughts, comments, plans and commit messages be extremely concise; sacrifice grammar for the sake of concision.
+- In all interactions and plans be extremely concise; sacrifice grammar for the sake of concision.
   - Conciseness alone does not justify omitting information or intent.
 - At the end of every task, run `composer style-fix` to ensure the coding style is consistent.
 
