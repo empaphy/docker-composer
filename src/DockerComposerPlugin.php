@@ -23,6 +23,7 @@ use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Util\ProcessExecutor;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /**
  * Redirects Composer scripts into a configured Docker Compose service.
@@ -311,7 +312,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 
         $io->writeError(sprintf(
             '<warning>docker-composer: no default service and no script-services override for "%s"; running Composer script on the host.</warning>',
-            $scriptName,
+            OutputFormatter::escape($scriptName),
         ));
         $this->missingConfigWarningWritten = true;
     }

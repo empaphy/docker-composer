@@ -172,6 +172,24 @@ class DockerComposePluginTest extends TestCase
         self::assertSame(1, substr_count($io->getOutput(), 'no default service and no script-services override for "cs"'));
     }
 
+    public function testMissingServiceWarningEscapesScriptName(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['bad<error>script</error>' => ['host-command']],
+            ['docker-composer' => []],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('bad<error>script</error>', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript($event);
+
+        self::assertFalse($event->isPropagationStopped());
+        self::assertSame([], $runner->commands);
+        self::assertStringContainsString('no default service and no script-services override for "bad<error>script</error>"', $io->getOutput());
+    }
+
     public function testExecModeStartsServiceOnlyOncePerComposeTarget(): void
     {
         [$composer, $io] = $this->createComposer(
@@ -689,6 +707,19 @@ class DockerComposePluginTest extends TestCase
         self::assertNull($config->getWorkdir());
         self::assertFalse($config->isExcluded('test'));
         self::assertSame([], $config->getUnknownKeys());
+    }
+
+    public function testConfigAcceptsEmptyScriptServices(): void
+    {
+        [$composer] = $this->createComposer([], [
+            'docker-composer' => [
+                'script-services' => [],
+            ],
+        ]);
+
+        $config = DockerComposerConfig::fromComposer($composer);
+
+        self::assertFalse($config->isConfiguredForScript('test'));
     }
 
     public function testConfigRejectsInvalidShapes(): void

@@ -528,11 +528,19 @@ final class DockerComposerConfig
             return [];
         }
 
-        if (! is_array($raw[$key]) || array_is_list($raw[$key])) {
+        if (! is_array($raw[$key])) {
             throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
         }
 
         $values = [];
+        if ($raw[$key] === []) {
+            return $values;
+        }
+
+        if (array_is_list($raw[$key])) {
+            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
+        }
+
         foreach ($raw[$key] as $mapKey => $value) {
             if (! is_string($mapKey) || $mapKey === '') {
                 throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must use non-empty string keys.', $key));
