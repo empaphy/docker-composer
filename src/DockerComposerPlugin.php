@@ -207,14 +207,16 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
             return;
         }
 
-        if (! $config->isConfigured()) {
+        if (! $config->isConfiguredForScript($event->getName())) {
             $this->writeMissingConfigWarning($event->getIO());
 
             return;
         }
 
-        $this->writeRedirectNotice($event, $config);
-        $this->runInDocker($event, $config);
+        $scriptConfig = $config->forScript($event->getName());
+
+        $this->writeRedirectNotice($event, $scriptConfig);
+        $this->runInDocker($event, $scriptConfig);
         $event->stopPropagation();
     }
 
@@ -305,7 +307,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $io->writeError(
-            '<warning>docker-composer: extra.docker-composer.service is not configured; running Composer scripts on the host.</warning>',
+            '<warning>docker-composer: no extra.docker-composer.service or script-services entry is configured; running Composer scripts on the host.</warning>',
         );
         $this->missingConfigWarningWritten = true;
     }

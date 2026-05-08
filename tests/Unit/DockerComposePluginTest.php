@@ -115,6 +115,63 @@ class DockerComposePluginTest extends TestCase
         self::assertStringContainsString('Running test in Docker Compose service php.', $io->getOutput());
     }
 
+    public function testScriptServiceOverrideChangesTargetService(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service' => 'php',
+                    'script-services' => [
+                        'test' => 'php-test',
+                    ],
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('test', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript($event);
+
+        self::assertTrue($event->isPropagationStopped());
+        self::assertSame('php-test', $runner->commands[0][4]);
+        self::assertSame('php-test', $runner->commands[1][6]);
+        self::assertStringContainsString('Running test in Docker Compose service php-test.', $io->getOutput());
+    }
+
+    public function testScriptServiceOverrideCanConfigureServiceWithoutDefault(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            [
+                'test' => ['host-command'],
+                'cs' => ['host-command'],
+            ],
+            [
+                'docker-composer' => [
+                    'script-services' => [
+                        'test' => 'php-test',
+                    ],
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $testEvent = new ScriptEvent('test', $composer, $io);
+        $csEvent = new ScriptEvent('cs', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript($testEvent);
+        $plugin->onScript($csEvent);
+
+        self::assertTrue($testEvent->isPropagationStopped());
+        self::assertFalse($csEvent->isPropagationStopped());
+        self::assertSame('php-test', $runner->commands[0][4]);
+        self::assertSame('php-test', $runner->commands[1][6]);
+        self::assertSame(1, substr_count($io->getOutput(), 'no extra.docker-composer.service or script-services entry is configured'));
+    }
+
     public function testExecModeStartsServiceOnlyOncePerComposeTarget(): void
     {
         [$composer, $io] = $this->createComposer(
@@ -188,6 +245,45 @@ class DockerComposePluginTest extends TestCase
                 'cs',
             ],
         ], $runner->commands);
+    }
+
+    public function testExecModeStartsEachScriptServiceOverrideOnce(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            [
+                'test' => ['host-command'],
+                'stan' => ['host-command'],
+                'test-again' => ['host-command'],
+            ],
+            [
+                'docker-composer' => [
+                    'service' => 'php',
+                    'script-services' => [
+                        'test' => 'php-test',
+                        'test-again' => 'php-test',
+                        'stan' => 'php-tools',
+                    ],
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+        $plugin->onScript(new ScriptEvent('test', $composer, $io));
+        $plugin->onScript(new ScriptEvent('stan', $composer, $io));
+        $plugin->onScript(new ScriptEvent('test-again', $composer, $io));
+
+        self::assertSame([
+            ['up', 'php-test'],
+            ['exec', 'php-test'],
+            ['up', 'php-tools'],
+            ['exec', 'php-tools'],
+            ['exec', 'php-test'],
+        ], array_map(
+            static fn(array $command): array => [$command[2], $command[$command[2] === 'up' ? 4 : 6]],
+            $runner->commands,
+        ));
     }
 
     public function testExecModeSkipsAutoUpWhenServiceIsAlreadyRunning(): void
@@ -428,7 +524,7 @@ class DockerComposePluginTest extends TestCase
         self::assertFalse($firstEvent->isPropagationStopped());
         self::assertFalse($secondEvent->isPropagationStopped());
         self::assertSame([], $runner->commands);
-        self::assertSame(1, substr_count($io->getOutput(), 'extra.docker-composer.service is not configured'));
+        self::assertSame(1, substr_count($io->getOutput(), 'no extra.docker-composer.service or script-services entry is configured'));
     }
 
     public function testEmptyAndInvalidScriptNamesAreIgnoredDuringActivation(): void
@@ -603,6 +699,9 @@ class DockerComposePluginTest extends TestCase
         $this->assertInvalidConfig(['docker-composer' => ['compose-files' => '']], 'extra.docker-composer.compose-files must contain non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => ['script' => true]]], 'extra.docker-composer.exclude must be a list of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => [1]]], 'extra.docker-composer.exclude must contain only non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['php']]], 'extra.docker-composer.script-services must be an object of strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['' => 'php']]], 'extra.docker-composer.script-services must use non-empty string keys.');
+        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['test' => '']]], 'extra.docker-composer.script-services must contain only non-empty strings.');
 
     }
 

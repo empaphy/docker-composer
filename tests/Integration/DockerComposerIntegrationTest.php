@@ -53,6 +53,23 @@ class DockerComposerIntegrationTest extends TestCase
         self::assertSame('1', trim((string) file_get_contents($projectDirectory . '/lifecycle.txt')));
     }
 
+    public function testScriptServiceOverrideRedirectsToConfiguredService(): void
+    {
+        $projectDirectory = $this->createProject([
+            'service' => 'php',
+            'script-services' => [
+                'mark' => 'php_tools',
+            ],
+            'compose-files' => 'docker-compose.yaml',
+            'workdir' => '/usr/src/app',
+        ]);
+        $this->installProject($projectDirectory);
+
+        $this->runCommand(['composer', 'run-script', 'mark'], $projectDirectory);
+
+        self::assertSame('override', trim((string) file_get_contents($projectDirectory . '/result.txt')));
+    }
+
     public function testRunModeBypassMissingConfigAndInsideContainerBehavior(): void
     {
         $runProjectDirectory = $this->createProject([
@@ -129,7 +146,7 @@ class DockerComposerIntegrationTest extends TestCase
                 ],
             ],
             'scripts' => [
-                'mark' => '@php -r "file_put_contents(\'result.txt\', getenv(\'DOCKER_COMPOSER_INSIDE\') ?: \'host\');"',
+                'mark' => '@php -r "file_put_contents(\'result.txt\', getenv(\'DOCKER_COMPOSER_TEST_MARK\') ?: (getenv(\'DOCKER_COMPOSER_INSIDE\') ?: \'host\'));"',
                 'post-autoload-dump' => '@php -r "file_put_contents(\'lifecycle.txt\', getenv(\'DOCKER_COMPOSER_INSIDE\') ?: \'host\');"',
             ],
             'extra' => [
@@ -151,7 +168,15 @@ services:
     working_dir: /usr/src/app
     volumes:
       - { type: bind, source: '.', target: '/usr/src/app' }
-YAML, $this->getComposerImage()));
+  php_tools:
+    image: %s
+    command: ['sleep', 'infinity']
+    environment:
+      DOCKER_COMPOSER_TEST_MARK: override
+    working_dir: /usr/src/app
+    volumes:
+      - { type: bind, source: '.', target: '/usr/src/app' }
+YAML, $this->getComposerImage(), $this->getComposerImage()));
 
         return $projectDirectory;
     }

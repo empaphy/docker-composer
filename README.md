@@ -25,14 +25,20 @@ Configure the target service in the root package's `composer.json`:
             "compose-files": ["docker-compose.yaml"],
             "project-directory": ".",
             "workdir": "/usr/src/app",
-            "exclude": ["host-only-script"]
+            "exclude": ["host-only-script"],
+            "script-services": {
+                "test": "php-test",
+                "stan": "php-tools"
+            }
         }
     }
 }
 ```
 
-Only `service` is required for Docker redirection. If `service` is missing, the
-plugin warns once per Composer run and lets host scripts run normally.
+Configure `service` for the default redirection target, or configure
+`script-services` for scripts that have no default. If neither resolves the
+current script, the plugin warns once per Composer run and lets host scripts run
+normally.
 
 Supported keys:
 
@@ -42,6 +48,7 @@ Supported keys:
 - `project-directory`: optional Docker Compose project directory.
 - `workdir`: optional working directory inside the container.
 - `exclude`: exact Composer script/event names that should run on the host.
+- `script-services`: exact Composer script/event names mapped to service overrides.
 
 Unknown keys warn and are ignored. Invalid known values fail before Docker is run.
 
@@ -50,6 +57,9 @@ Unknown keys warn and are ignored. Invalid known values fail before Docker is ru
 When Composer dispatches a top-level script on the host, the plugin runs the same
 script inside the configured service and prevents the host-side script from
 continuing.
+
+If `script-services` contains the current script name, that service is used
+instead of the default `service`.
 
 In `exec` mode, the plugin checks whether the service is already running:
 
