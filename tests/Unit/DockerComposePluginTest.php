@@ -169,7 +169,7 @@ class DockerComposePluginTest extends TestCase
         self::assertFalse($csEvent->isPropagationStopped());
         self::assertSame('php-test', $runner->commands[0][4]);
         self::assertSame('php-test', $runner->commands[1][6]);
-        self::assertSame(1, substr_count($io->getOutput(), 'no extra.docker-composer.service or script-services entry is configured'));
+        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no script-services override for "cs"'));
     }
 
     public function testExecModeStartsServiceOnlyOncePerComposeTarget(): void
@@ -524,7 +524,7 @@ class DockerComposePluginTest extends TestCase
         self::assertFalse($firstEvent->isPropagationStopped());
         self::assertFalse($secondEvent->isPropagationStopped());
         self::assertSame([], $runner->commands);
-        self::assertSame(1, substr_count($io->getOutput(), 'no extra.docker-composer.service or script-services entry is configured'));
+        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no script-services override for "test"'));
     }
 
     public function testEmptyAndInvalidScriptNamesAreIgnoredDuringActivation(): void

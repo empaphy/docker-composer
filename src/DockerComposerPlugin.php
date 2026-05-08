@@ -208,7 +208,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         if (! $config->isConfiguredForScript($event->getName())) {
-            $this->writeMissingConfigWarning($event->getIO());
+            $this->writeMissingConfigWarning($event->getIO(), $event->getName());
 
             return;
         }
@@ -297,18 +297,22 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @param  IOInterface  $io
      *   The Composer IO that receives the warning.
      *
+     * @param  string  $scriptName
+     *   The Composer script name without a configured service.
+     *
      * @return void
      *   Returns nothing.
      */
-    private function writeMissingConfigWarning(IOInterface $io): void
+    private function writeMissingConfigWarning(IOInterface $io, string $scriptName): void
     {
         if ($this->missingConfigWarningWritten) {
             return;
         }
 
-        $io->writeError(
-            '<warning>docker-composer: no extra.docker-composer.service or script-services entry is configured; running Composer scripts on the host.</warning>',
-        );
+        $io->writeError(sprintf(
+            '<warning>docker-composer: no default service and no script-services override for "%s"; running Composer script on the host.</warning>',
+            $scriptName,
+        ));
         $this->missingConfigWarningWritten = true;
     }
 
