@@ -66,6 +66,11 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private bool $unknownConfigWarningWritten = false;
 
     /**
+     * Tracks whether duplicate service mapping warnings were written.
+     */
+    private bool $duplicateServiceMappingWarningsWritten = false;
+
+    /**
      * Tracks services started for Docker Compose exec mode.
      *
      * Stores startup keys for services already started during this process.
@@ -115,6 +120,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $this->processRunner ??= new ComposerProcessRunner($io);
 
         $this->writeUnknownConfigWarning();
+        $this->writeDuplicateServiceMappingWarnings();
         $this->registerScriptListeners($composer);
     }
 
@@ -290,6 +296,29 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $this->unknownConfigWarningWritten = true;
+    }
+
+    /**
+     * Writes warnings for duplicate same-service script mappings.
+     *
+     * @return void
+     *   Returns nothing.
+     */
+    private function writeDuplicateServiceMappingWarnings(): void
+    {
+        if ($this->duplicateServiceMappingWarningsWritten || $this->config === null || $this->io === null) {
+            return;
+        }
+
+        foreach ($this->config->getDuplicateServiceMappingScripts() as $duplicate) {
+            $this->io->writeError(sprintf(
+                '<warning>docker-composer: duplicate service-mapping script "%s" for service "%s" will be ignored.</warning>',
+                OutputFormatter::escape($duplicate['script']),
+                OutputFormatter::escape($duplicate['service']),
+            ));
+        }
+
+        $this->duplicateServiceMappingWarningsWritten = true;
     }
 
     /**

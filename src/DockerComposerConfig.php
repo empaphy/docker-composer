@@ -75,6 +75,13 @@ final class DockerComposerConfig
     private array $scriptServices;
 
     /**
+     * Stores duplicate script entries found within the same service mapping.
+     *
+     * @var list<array{service: string, script: string}>
+     */
+    private array $duplicateServiceMappingScripts;
+
+    /**
      * Stores the Docker Compose invocation mode.
      */
     private string $mode;
@@ -121,6 +128,9 @@ final class DockerComposerConfig
      * @param  array<string, string>  $scriptServices
      *   The Docker Compose services keyed by Composer script name.
      *
+     * @param  list<array{service: string, script: string}>  $duplicateServiceMappingScripts
+     *   The duplicate same-service script mappings retained for warnings.
+     *
      * @param  string  $mode
      *   The Docker Compose mode, either `"exec"` or `"run"`.
      *
@@ -142,6 +152,7 @@ final class DockerComposerConfig
     private function __construct(
         ?string $service,
         array $scriptServices,
+        array $duplicateServiceMappingScripts,
         string $mode,
         array $composeFiles,
         ?string $projectDirectory,
@@ -151,6 +162,7 @@ final class DockerComposerConfig
     ) {
         $this->service = $service;
         $this->scriptServices = $scriptServices;
+        $this->duplicateServiceMappingScripts = $duplicateServiceMappingScripts;
         $this->mode = $mode;
         $this->composeFiles = $composeFiles;
         $this->projectDirectory = $projectDirectory;
@@ -186,14 +198,15 @@ final class DockerComposerConfig
         $raw = self::object($raw);
         $unknownKeys = array_values(array_diff(array_keys($raw), self::KNOWN_KEYS));
         $service = self::optionalString($raw, 'service');
-        $scriptServices = self::serviceMapping($raw);
+        $duplicateServiceMappingScripts = [];
+        $scriptServices = self::serviceMapping($raw, $duplicateServiceMappingScripts);
         $mode = self::mode($raw);
         $composeFiles = self::composeFiles($raw);
         $projectDirectory = self::optionalString($raw, 'project-directory');
         $workdir = self::optionalString($raw, 'workdir');
         $exclude = self::stringList($raw, 'exclude');
 
-        return new self($service, $scriptServices, $mode, $composeFiles, $projectDirectory, $workdir, $exclude, $unknownKeys);
+        return new self($service, $scriptServices, $duplicateServiceMappingScripts, $mode, $composeFiles, $projectDirectory, $workdir, $exclude, $unknownKeys);
     }
 
     /**
@@ -273,6 +286,7 @@ final class DockerComposerConfig
         return new self(
             $this->getServiceForScript($scriptName),
             $this->scriptServices,
+            $this->duplicateServiceMappingScripts,
             $this->mode,
             $this->composeFiles,
             $this->projectDirectory,
@@ -352,6 +366,17 @@ final class DockerComposerConfig
     }
 
     /**
+     * Gets duplicate script mappings found within the same service.
+     *
+     * @return list<array{service: string, script: string}>
+     *   Returns duplicate script entries ignored during service mapping parsing.
+     */
+    public function getDuplicateServiceMappingScripts(): array
+    {
+        return $this->duplicateServiceMappingScripts;
+    }
+
+    /**
      * Creates an empty configuration object.
      *
      * @return self
@@ -359,7 +384,7 @@ final class DockerComposerConfig
      */
     private static function empty(): self
     {
-        return new self(null, [], self::MODE_EXEC, [], null, null, [], []);
+        return new self(null, [], [], self::MODE_EXEC, [], null, null, [], []);
     }
 
     /**
@@ -513,6 +538,9 @@ final class DockerComposerConfig
      * @param  array<string, mixed>  $raw
      *   The normalized configuration object.
      *
+     * @param  list<array{service: string, script: string}>  $duplicateWarnings
+     *   The duplicate same-service script mappings found while parsing.
+     *
      * @return array<string, string>
      *   Returns Docker Compose services keyed by Composer script name.
      *
@@ -520,7 +548,7 @@ final class DockerComposerConfig
      *   Thrown when `service-mapping` is not an object of non-empty strings
      *   or lists of non-empty strings.
      */
-    private static function serviceMapping(array $raw): array
+    private static function serviceMapping(array $raw, array &$duplicateWarnings): array
     {
         $key = 'service-mapping';
         if (! array_key_exists($key, $raw) || $raw[$key] === null) {
@@ -531,6 +559,7 @@ final class DockerComposerConfig
             throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings or lists of strings.', $key));
         }
 
+        $duplicateWarningsByKey = [];
         $values = [];
         if ($raw[$key] === []) {
             return $values;
@@ -558,6 +587,15 @@ final class DockerComposerConfig
                     throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings or lists of non-empty strings.', $key));
                 }
 
+                if (array_key_exists($script, $values) && $values[$script] === $service) {
+                    $duplicateWarningsByKey[$service . "\0" . $script] = [
+                        'service' => $service,
+                        'script' => $script,
+                    ];
+
+                    continue;
+                }
+
                 if (array_key_exists($script, $values)) {
                     throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must not assign a script to multiple services.', $key));
                 }
@@ -569,6 +607,8 @@ final class DockerComposerConfig
                 throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings.', $key));
             }
         }
+
+        $duplicateWarnings = array_values($duplicateWarningsByKey);
 
         return $values;
     }

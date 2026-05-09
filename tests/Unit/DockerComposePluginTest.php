@@ -792,6 +792,32 @@ class DockerComposePluginTest extends TestCase
         self::assertSame(1, substr_count($io->getOutput(), 'future-key'));
     }
 
+    public function testDuplicateServiceMappingScriptForSameServiceWarnsAndContinues(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service-mapping' => [
+                        'php' => ['test', 'test'],
+                    ],
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('test', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->activate($composer, $io);
+        $plugin->onScript($event);
+
+        self::assertTrue($event->isPropagationStopped());
+        self::assertSame('php', $runner->commands[0][4]);
+        self::assertSame('php', $runner->commands[1][6]);
+        self::assertSame(1, substr_count($io->getOutput(), 'duplicate service-mapping script "test" for service "php" will be ignored.'));
+    }
+
     #[BackupGlobals(true)]
     public function testDisableEnvironmentVariableFallsThrough(): void
     {
