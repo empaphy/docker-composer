@@ -35,10 +35,10 @@ Configure the target service in the root package's `composer.json`:
 }
 ```
 
-Configure `service` for the default redirection target, or configure
-`service-mapping` for scripts that have no default. If neither resolves the
-current script, the plugin warns once per Composer run and lets host scripts run
-normally.
+Configure `service` for the default redirection target, and configure
+`service-mapping` for scripts that should run in a different service. If neither
+resolves the current script, the plugin warns once per Composer run and lets host
+scripts run normally.
 
 Supported keys:
 

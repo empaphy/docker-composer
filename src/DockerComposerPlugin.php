@@ -120,7 +120,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $this->processRunner ??= new ComposerProcessRunner($io);
 
         $this->writeUnknownConfigWarning();
-        $this->writeDuplicateServiceMappingWarnings();
+        $this->writeDuplicateServiceMappingWarnings($io);
         $this->registerScriptListeners($composer);
     }
 
@@ -210,6 +210,8 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $config = $this->getConfig($event);
+        $this->writeDuplicateServiceMappingWarnings($event->getIO());
+
         if ($config->isExcluded($event->getName())) {
             return;
         }
@@ -304,14 +306,14 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @return void
      *   Returns nothing.
      */
-    private function writeDuplicateServiceMappingWarnings(): void
+    private function writeDuplicateServiceMappingWarnings(IOInterface $io): void
     {
-        if ($this->duplicateServiceMappingWarningsWritten || $this->config === null || $this->io === null) {
+        if ($this->duplicateServiceMappingWarningsWritten || $this->config === null) {
             return;
         }
 
         foreach ($this->config->getDuplicateServiceMappingScripts() as $duplicate) {
-            $this->io->writeError(sprintf(
+            $io->writeError(sprintf(
                 '<warning>docker-composer: duplicate service-mapping script "%s" for service "%s" will be ignored.</warning>',
                 OutputFormatter::escape($duplicate['script']),
                 OutputFormatter::escape($duplicate['service']),

@@ -604,7 +604,7 @@ final class DockerComposerConfig
             }
 
             if ($scripts === []) {
-                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings.', $key));
+                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must map each service to at least one script.', $key));
             }
         }
 
