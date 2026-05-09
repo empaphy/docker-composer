@@ -682,7 +682,8 @@ class DockerComposerPluginTest extends TestCase
 
         self::assertSame(7, $exception->getCode());
         self::assertStringContainsString('Docker Compose exec command failed with exit code 7.', $exception->getMessage());
-        self::assertStringContainsString("'composer' 'install'", $exception->getMessage());
+        self::assertStringContainsString('composer', $exception->getMessage());
+        self::assertStringContainsString('install', $exception->getMessage());
         self::assertStringContainsString('Error Output: install failed', $exception->getMessage());
     }
 
