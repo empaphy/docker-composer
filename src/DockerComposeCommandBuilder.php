@@ -219,12 +219,7 @@ class DockerComposeCommandBuilder
      */
     private function getCommandArguments(InputInterface $input, string $commandName): array
     {
-        if (! method_exists($input, 'getRawTokens')) {
-            throw new InvalidArgumentException('Composer command input must expose raw tokens.');
-        }
-
-        /** @var list<string> $tokens */
-        $tokens = $input->getRawTokens();
+        $tokens = $this->getRawInputTokens($input);
         $firstArgument = $input->getFirstArgument();
         $commandTokenReplaced = false;
 
@@ -240,6 +235,86 @@ class DockerComposeCommandBuilder
         }
 
         return $this->stripWorkingDirectoryTokens($tokens);
+    }
+
+    /**
+     * Gets raw input tokens across Symfony Console versions.
+     *
+     * @param  InputInterface  $input
+     *   The console input that carries Composer command arguments.
+     *
+     * @return list<string>
+     *   Returns raw tokens without the Composer executable.
+     *
+     * @throws InvalidArgumentException
+     *   Thrown when raw tokens cannot be recovered safely.
+     */
+    private function getRawInputTokens(InputInterface $input): array
+    {
+        if (method_exists($input, 'getRawTokens')) {
+            /** @var list<string> $tokens */
+            $tokens = $input->getRawTokens();
+
+            return $tokens;
+        }
+
+        $tokens = $this->getRawInputTokensFromProperty($input);
+        if ($tokens !== null) {
+            return $tokens;
+        }
+
+        $argv = $_SERVER['argv'] ?? null;
+        if (! is_array($argv) || $argv === []) {
+            throw new InvalidArgumentException('Composer command input must expose raw tokens.');
+        }
+
+        $tokens = [];
+        foreach (array_slice($argv, 1) as $token) {
+            if (! is_string($token)) {
+                throw new InvalidArgumentException('Composer command input must expose raw tokens.');
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * Gets raw input tokens from legacy Symfony Console internals.
+     *
+     * @param  InputInterface  $input
+     *   The console input that may store raw tokens privately.
+     *
+     * @return list<string>|null
+     *   Returns raw tokens, or `null` when no compatible property exists.
+     *
+     * @throws InvalidArgumentException
+     *   Thrown when the legacy tokens property has an unexpected shape.
+     */
+    private function getRawInputTokensFromProperty(InputInterface $input): ?array
+    {
+        $reflection = new \ReflectionObject($input);
+        if (! $reflection->hasProperty('tokens')) {
+            return null;
+        }
+
+        $property = $reflection->getProperty('tokens');
+        $rawTokens = $property->getValue($input);
+        if (! is_array($rawTokens) || ! array_is_list($rawTokens)) {
+            throw new InvalidArgumentException('Composer command input must expose raw tokens.');
+        }
+
+        $tokens = [];
+        foreach ($rawTokens as $token) {
+            if (! is_string($token)) {
+                throw new InvalidArgumentException('Composer command input must expose raw tokens.');
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
     }
 
     /**
