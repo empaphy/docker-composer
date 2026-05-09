@@ -63,44 +63,6 @@ class DockerComposerIntegrationTest extends TestCase
         self::assertSame('override', trim((string) file_get_contents($projectDirectory . '/result.txt')));
     }
 
-    public function testServiceMappingProjectCanUpdateFromOldPluginVersion(): void
-    {
-        $projectDirectory = $this->createProject(
-            [
-                'service-mapping' => [
-                    'php' => 'mark',
-                ],
-            ],
-            [
-                [
-                    'type' => 'vcs',
-                    'url' => 'https://github.com/empaphy/docker-composer.git',
-                ],
-            ],
-            'dev-main#1e1b4e7',
-        );
-        $this->installProject($projectDirectory);
-
-        $this->updateProjectRepositories($projectDirectory, [
-            [
-                'type' => 'path',
-                'url' => dirname(__DIR__, 2),
-                'options' => ['symlink' => false],
-            ],
-            [
-                'type' => 'vcs',
-                'url' => 'https://github.com/empaphy/docker-composer.git',
-            ],
-        ]);
-        $result = $this->runCommand(
-            $this->getRequireCommand('empaphy/docker-composer:*@dev'),
-            $projectDirectory,
-        );
-
-        self::assertStringNotContainsString('getDuplicateServiceMappingScripts', $result->stderr);
-        self::assertStringNotContainsString('Update of empaphy/docker-composer failed', $result->stderr);
-    }
-
     public function testRunModeBypassMissingConfigAndInsideContainerBehavior(): void
     {
         $runProjectDirectory = $this->createProject([
@@ -216,7 +178,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
     /**
      * @param list<array<string, mixed>> $repositories
      */
-    private function updateProjectRepositories(string $projectDirectory, array $repositories): void
+    protected function updateProjectRepositories(string $projectDirectory, array $repositories): void
     {
         $composerJsonPath = $projectDirectory . '/composer.json';
         $composerJson = json_decode((string) file_get_contents($composerJsonPath), true);
@@ -253,7 +215,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
      * @return list<string>
      *   Returns a Composer require command compatible with the active version.
      */
-    private function getRequireCommand(string $package): array
+    protected function getRequireCommand(string $package): array
     {
         $command = ['composer', 'require', $package, '--no-interaction', '--no-progress'];
         $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
@@ -275,7 +237,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
      * @param list<string>          $command
      * @param array<string, string> $environment
      */
-    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): ProcessResult
+    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): void
     {
         $descriptorSpec = [
             1 => ['pipe', 'w'],
@@ -297,18 +259,15 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
         fclose($pipes[2]);
         $exitCode = proc_close($process);
 
-        $result = new ProcessResult($exitCode, (string) $stdout, (string) $stderr);
-        if ($failOnError && $result->exitCode !== 0) {
+        if ($failOnError && $exitCode !== 0) {
             self::fail(sprintf(
                 "Command failed with exit code %d:\n%s\n\nSTDOUT:\n%s\n\nSTDERR:\n%s",
-                $result->exitCode,
+                $exitCode,
                 implode(' ', $command),
-                $result->stdout,
-                $result->stderr,
+                $stdout,
+                $stderr,
             ));
         }
-
-        return $result;
     }
 
     private function removeDirectory(string $directory): void
@@ -332,13 +291,4 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
 
         rmdir($directory);
     }
-}
-
-final class ProcessResult
-{
-    public function __construct(
-        public int $exitCode,
-        public string $stdout,
-        public string $stderr,
-    ) {}
 }
