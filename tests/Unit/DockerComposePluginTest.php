@@ -115,15 +115,15 @@ class DockerComposePluginTest extends TestCase
         self::assertStringContainsString('Running test in Docker Compose service php.', $io->getOutput());
     }
 
-    public function testScriptServiceOverrideChangesTargetService(): void
+    public function testServiceMappingOverrideChangesTargetService(): void
     {
         [$composer, $io] = $this->createComposer(
             ['test' => ['host-command']],
             [
                 'docker-composer' => [
                     'service' => 'php',
-                    'script-services' => [
-                        'test' => 'php-test',
+                    'service-mapping' => [
+                        'php-test' => 'test',
                     ],
                 ],
             ],
@@ -165,7 +165,7 @@ class DockerComposePluginTest extends TestCase
         );
     }
 
-    public function testScriptServiceOverrideCanConfigureServiceWithoutDefault(): void
+    public function testServiceMappingOverrideCanConfigureServiceWithoutDefault(): void
     {
         [$composer, $io] = $this->createComposer(
             [
@@ -174,8 +174,8 @@ class DockerComposePluginTest extends TestCase
             ],
             [
                 'docker-composer' => [
-                    'script-services' => [
-                        'test' => 'php-test',
+                    'service-mapping' => [
+                        'php-test' => 'test',
                     ],
                 ],
             ],
@@ -193,7 +193,7 @@ class DockerComposePluginTest extends TestCase
         self::assertFalse($csEvent->isPropagationStopped());
         self::assertSame('php-test', $runner->commands[0][4]);
         self::assertSame('php-test', $runner->commands[1][6]);
-        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no script-services override for "cs"'));
+        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no service-mapping override for "cs"'));
     }
 
     public function testMissingServiceWarningEscapesScriptName(): void
@@ -211,7 +211,7 @@ class DockerComposePluginTest extends TestCase
 
         self::assertFalse($event->isPropagationStopped());
         self::assertSame([], $runner->commands);
-        self::assertStringContainsString('no default service and no script-services override for "bad<error>script</error>"', $io->getOutput());
+        self::assertStringContainsString('no default service and no service-mapping override for "bad<error>script</error>"', $io->getOutput());
     }
 
     public function testExecModeStartsServiceOnlyOncePerComposeTarget(): void
@@ -289,7 +289,7 @@ class DockerComposePluginTest extends TestCase
         ], $runner->commands);
     }
 
-    public function testExecModeStartsEachScriptServiceOverrideOnce(): void
+    public function testExecModeStartsEachServiceMappingOverrideOnce(): void
     {
         [$composer, $io] = $this->createComposer(
             [
@@ -300,10 +300,9 @@ class DockerComposePluginTest extends TestCase
             [
                 'docker-composer' => [
                     'service' => 'php',
-                    'script-services' => [
-                        'test' => 'php-test',
-                        'test-again' => 'php-test',
-                        'stan' => 'php-tools',
+                    'service-mapping' => [
+                        'php-test' => ['test', 'test-again'],
+                        'php-tools' => 'stan',
                     ],
                 ],
             ],
@@ -566,7 +565,7 @@ class DockerComposePluginTest extends TestCase
         self::assertFalse($firstEvent->isPropagationStopped());
         self::assertFalse($secondEvent->isPropagationStopped());
         self::assertSame([], $runner->commands);
-        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no script-services override for "test"'));
+        self::assertSame(1, substr_count($io->getOutput(), 'no default service and no service-mapping override for "test"'));
     }
 
     public function testEmptyAndInvalidScriptNamesAreIgnoredDuringActivation(): void
@@ -733,11 +732,11 @@ class DockerComposePluginTest extends TestCase
         self::assertSame([], $config->getUnknownKeys());
     }
 
-    public function testConfigAcceptsEmptyScriptServices(): void
+    public function testConfigAcceptsEmptyServiceMapping(): void
     {
         [$composer] = $this->createComposer([], [
             'docker-composer' => [
-                'script-services' => [],
+                'service-mapping' => [],
             ],
         ]);
 
@@ -754,10 +753,14 @@ class DockerComposePluginTest extends TestCase
         $this->assertInvalidConfig(['docker-composer' => ['compose-files' => '']], 'extra.docker-composer.compose-files must contain non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => ['script' => true]]], 'extra.docker-composer.exclude must be a list of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['exclude' => [1]]], 'extra.docker-composer.exclude must contain only non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['script-services' => 'php']], 'extra.docker-composer.script-services must be an object of strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['php']]], 'extra.docker-composer.script-services must be an object of strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['' => 'php']]], 'extra.docker-composer.script-services must use non-empty string keys.');
-        $this->assertInvalidConfig(['docker-composer' => ['script-services' => ['test' => '']]], 'extra.docker-composer.script-services must contain only non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => 'php']], 'extra.docker-composer.service-mapping must be an object of strings or lists of strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php']]], 'extra.docker-composer.service-mapping must be an object of strings or lists of strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['' => 'test']]], 'extra.docker-composer.service-mapping must use non-empty string keys.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => '']]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['test' => 'test']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => []]]], 'extra.docker-composer.service-mapping must map each service to at least one script.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => 'test', 'php-tools' => ['test']]]], 'extra.docker-composer.service-mapping must not assign a script to multiple services.');
 
     }
 
@@ -787,6 +790,57 @@ class DockerComposePluginTest extends TestCase
 
         self::assertStringContainsString('Unknown extra.docker-composer key "future-key" will be ignored.', $io->getOutput());
         self::assertSame(1, substr_count($io->getOutput(), 'future-key'));
+    }
+
+    public function testDuplicateServiceMappingScriptForSameServiceWarnsAndContinues(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service-mapping' => [
+                        'php' => ['test', 'test'],
+                    ],
+                ],
+            ],
+        );
+        $runner = new TestProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $event = new ScriptEvent('test', $composer, $io);
+
+        $plugin->activate($composer, $io);
+        $plugin->activate($composer, $io);
+        $plugin->onScript($event);
+
+        self::assertTrue($event->isPropagationStopped());
+        self::assertSame('php', $runner->commands[0][4]);
+        self::assertSame('php', $runner->commands[1][6]);
+        self::assertSame(1, substr_count($io->getOutput(), 'duplicate service-mapping script "test" for service "php" will be ignored.'));
+    }
+
+    public function testDuplicateServiceMappingScriptWarnsWithoutActivation(): void
+    {
+        [$composer, $io] = $this->createComposer(
+            ['test' => ['host-command']],
+            [
+                'docker-composer' => [
+                    'service-mapping' => [
+                        'php' => ['test', 'test'],
+                    ],
+                ],
+            ],
+        );
+        $plugin = new DockerComposerPlugin(
+            new TestProcessRunner(),
+            new TestContainerDetector(false),
+        );
+        $event = new ScriptEvent('test', $composer, $io);
+
+        $plugin->onScript($event);
+        $plugin->onScript($event);
+
+        self::assertTrue($event->isPropagationStopped());
+        self::assertSame(1, substr_count($io->getOutput(), 'duplicate service-mapping script "test" for service "php" will be ignored.'));
     }
 
     #[BackupGlobals(true)]

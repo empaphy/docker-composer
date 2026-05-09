@@ -66,6 +66,11 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private bool $unknownConfigWarningWritten = false;
 
     /**
+     * Tracks whether duplicate service mapping warnings were written.
+     */
+    private bool $duplicateServiceMappingWarningsWritten = false;
+
+    /**
      * Tracks services started for Docker Compose exec mode.
      *
      * Stores startup keys for services already started during this process.
@@ -115,6 +120,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $this->processRunner ??= new ComposerProcessRunner($io);
 
         $this->writeUnknownConfigWarning();
+        $this->writeDuplicateServiceMappingWarnings($io);
         $this->registerScriptListeners($composer);
     }
 
@@ -204,6 +210,8 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $config = $this->getConfig($event);
+        $this->writeDuplicateServiceMappingWarnings($event->getIO());
+
         if ($config->isExcluded($event->getName())) {
             return;
         }
@@ -293,6 +301,29 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
+     * Writes warnings for duplicate same-service script mappings.
+     *
+     * @return void
+     *   Returns nothing.
+     */
+    private function writeDuplicateServiceMappingWarnings(IOInterface $io): void
+    {
+        if ($this->duplicateServiceMappingWarningsWritten || $this->config === null) {
+            return;
+        }
+
+        foreach ($this->config->getDuplicateServiceMappingScripts() as $duplicate) {
+            $io->writeError(sprintf(
+                '<warning>docker-composer: duplicate service-mapping script "%s" for service "%s" will be ignored.</warning>',
+                OutputFormatter::escape($duplicate['script']),
+                OutputFormatter::escape($duplicate['service']),
+            ));
+        }
+
+        $this->duplicateServiceMappingWarningsWritten = true;
+    }
+
+    /**
      * Writes the missing service configuration warning.
      *
      * @param  IOInterface  $io
@@ -311,7 +342,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $io->writeError(sprintf(
-            '<warning>docker-composer: no default service and no script-services override for "%s"; running Composer script on the host.</warning>',
+            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer script on the host.</warning>',
             OutputFormatter::escape($scriptName),
         ));
         $this->missingConfigWarningWritten = true;
