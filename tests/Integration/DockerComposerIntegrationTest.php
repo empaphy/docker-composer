@@ -63,6 +63,44 @@ class DockerComposerIntegrationTest extends TestCase
         self::assertSame('override', trim((string) file_get_contents($projectDirectory . '/result.txt')));
     }
 
+    public function testServiceMappingProjectCanUpdateFromOldPluginVersion(): void
+    {
+        $projectDirectory = $this->createProject(
+            [
+                'service-mapping' => [
+                    'php' => 'mark',
+                ],
+            ],
+            [
+                [
+                    'type' => 'vcs',
+                    'url' => dirname(__DIR__, 2),
+                ],
+            ],
+            'dev-main#1e1b4e7',
+        );
+        $this->installProject($projectDirectory);
+
+        $this->updateProjectRepositories($projectDirectory, [
+            [
+                'type' => 'path',
+                'url' => dirname(__DIR__, 2),
+                'options' => ['symlink' => false],
+            ],
+            [
+                'type' => 'vcs',
+                'url' => dirname(__DIR__, 2),
+            ],
+        ]);
+        $result = $this->runCommand(
+            ['composer', 'require', '-m', 'empaphy/docker-composer:*@dev', '--no-interaction', '--no-progress'],
+            $projectDirectory,
+        );
+
+        self::assertStringNotContainsString('getDuplicateServiceMappingScripts', $result->stderr);
+        self::assertStringNotContainsString('Update of empaphy/docker-composer failed', $result->stderr);
+    }
+
     public function testRunModeBypassMissingConfigAndInsideContainerBehavior(): void
     {
         $runProjectDirectory = $this->createProject([
@@ -107,8 +145,9 @@ class DockerComposerIntegrationTest extends TestCase
 
     /**
      * @param array<string, mixed> $dockerComposerConfig
+     * @param list<array<string, mixed>>|null $repositories
      */
-    private function createProject(array $dockerComposerConfig): string
+    private function createProject(array $dockerComposerConfig, ?array $repositories = null, string $requireVersion = '*'): string
     {
         $projectDirectory = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
             . DIRECTORY_SEPARATOR
@@ -125,13 +164,13 @@ class DockerComposerIntegrationTest extends TestCase
             'description' => 'Temporary docker-composer integration fixture.',
             'minimum-stability' => 'dev',
             'prefer-stable' => true,
-            'repositories' => [[
+            'repositories' => $repositories ?? [[
                 'type' => 'path',
                 'url' => dirname(__DIR__, 2),
                 'options' => ['symlink' => false],
             ]],
             'require' => [
-                'empaphy/docker-composer' => '*',
+                'empaphy/docker-composer' => $requireVersion,
             ],
             'config' => [
                 'allow-plugins' => [
@@ -172,6 +211,27 @@ services:
 YAML, $this->getComposerImage(), $this->getComposerImage()));
 
         return $projectDirectory;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $repositories
+     */
+    private function updateProjectRepositories(string $projectDirectory, array $repositories): void
+    {
+        $composerJsonPath = $projectDirectory . '/composer.json';
+        $composerJson = json_decode((string) file_get_contents($composerJsonPath), true);
+        if (! is_array($composerJson)) {
+            throw new \RuntimeException(sprintf('Unable to decode "%s".', $composerJsonPath));
+        }
+
+        $composerJson['repositories'] = $repositories;
+
+        $encodedComposerJson = json_encode($composerJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($encodedComposerJson === false) {
+            throw new \RuntimeException(sprintf('Unable to encode "%s".', $composerJsonPath));
+        }
+
+        file_put_contents($composerJsonPath, $encodedComposerJson . PHP_EOL);
     }
 
     private function getComposerImage(): string

@@ -291,6 +291,13 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         foreach ($this->config->getUnknownKeys() as $key) {
+            if (
+                $key === 'service-mapping'
+                && ! method_exists($this->config, 'getDuplicateServiceMappingScripts') // @phpstan-ignore function.alreadyNarrowedType
+            ) {
+                continue;
+            }
+
             $this->io->writeError(sprintf(
                 '<warning>docker-composer: Unknown extra.docker-composer key "%s" will be ignored.</warning>',
                 $key,
@@ -309,6 +316,14 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private function writeDuplicateServiceMappingWarnings(IOInterface $io): void
     {
         if ($this->duplicateServiceMappingWarningsWritten || $this->config === null) {
+            return;
+        }
+
+        if (
+            ! method_exists($this->config, 'getDuplicateServiceMappingScripts') // @phpstan-ignore function.alreadyNarrowedType
+        ) {
+            $this->duplicateServiceMappingWarningsWritten = true;
+
             return;
         }
 
