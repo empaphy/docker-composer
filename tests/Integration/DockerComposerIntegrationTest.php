@@ -74,7 +74,7 @@ class DockerComposerIntegrationTest extends TestCase
             [
                 [
                     'type' => 'vcs',
-                    'url' => dirname(__DIR__, 2),
+                    'url' => 'https://github.com/empaphy/docker-composer.git',
                 ],
             ],
             'dev-main#1e1b4e7',
@@ -89,7 +89,7 @@ class DockerComposerIntegrationTest extends TestCase
             ],
             [
                 'type' => 'vcs',
-                'url' => dirname(__DIR__, 2),
+                'url' => 'https://github.com/empaphy/docker-composer.git',
             ],
         ]);
         $result = $this->runCommand(
