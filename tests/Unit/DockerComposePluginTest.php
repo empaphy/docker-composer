@@ -757,6 +757,7 @@ class DockerComposePluginTest extends TestCase
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php']]], 'extra.docker-composer.service-mapping must be an object of strings or lists of strings.');
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['' => 'test']]], 'extra.docker-composer.service-mapping must use non-empty string keys.');
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => '']]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
+        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['test' => 'test']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => []]]], 'extra.docker-composer.service-mapping must contain only non-empty strings.');
         $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => 'test', 'php-tools' => ['test']]]], 'extra.docker-composer.service-mapping must not assign a script to multiple services.');
