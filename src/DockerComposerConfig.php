@@ -59,12 +59,20 @@ final class DockerComposerConfig
         'project-directory',
         'workdir',
         'exclude',
+        'script-services',
     ];
 
     /**
      * Stores the Docker Compose service name.
      */
     private ?string $service;
+
+    /**
+     * Stores Docker Compose service overrides by Composer script name.
+     *
+     * @var array<string, string>
+     */
+    private array $scriptServices;
 
     /**
      * Stores the Docker Compose invocation mode.
@@ -110,6 +118,9 @@ final class DockerComposerConfig
      * @param  string|null  $service
      *   The Docker Compose service name, or `null` when missing.
      *
+     * @param  array<string, string>  $scriptServices
+     *   The Docker Compose service overrides keyed by Composer script name.
+     *
      * @param  string  $mode
      *   The Docker Compose mode, either `"exec"` or `"run"`.
      *
@@ -130,6 +141,7 @@ final class DockerComposerConfig
      */
     private function __construct(
         ?string $service,
+        array $scriptServices,
         string $mode,
         array $composeFiles,
         ?string $projectDirectory,
@@ -138,6 +150,7 @@ final class DockerComposerConfig
         array $unknownKeys,
     ) {
         $this->service = $service;
+        $this->scriptServices = $scriptServices;
         $this->mode = $mode;
         $this->composeFiles = $composeFiles;
         $this->projectDirectory = $projectDirectory;
@@ -173,13 +186,14 @@ final class DockerComposerConfig
         $raw = self::object($raw);
         $unknownKeys = array_values(array_diff(array_keys($raw), self::KNOWN_KEYS));
         $service = self::optionalString($raw, 'service');
+        $scriptServices = self::stringMap($raw, 'script-services');
         $mode = self::mode($raw);
         $composeFiles = self::composeFiles($raw);
         $projectDirectory = self::optionalString($raw, 'project-directory');
         $workdir = self::optionalString($raw, 'workdir');
         $exclude = self::stringList($raw, 'exclude');
 
-        return new self($service, $mode, $composeFiles, $projectDirectory, $workdir, $exclude, $unknownKeys);
+        return new self($service, $scriptServices, $mode, $composeFiles, $projectDirectory, $workdir, $exclude, $unknownKeys);
     }
 
     /**
@@ -191,6 +205,20 @@ final class DockerComposerConfig
     public function isConfigured(): bool
     {
         return $this->service !== null;
+    }
+
+    /**
+     * Checks whether a Docker Compose service is configured for a script.
+     *
+     * @param  string  $scriptName
+     *   The Composer script name to check.
+     *
+     * @return bool
+     *   Returns `true` when __scriptName__ has an override or default service.
+     */
+    public function isConfiguredForScript(string $scriptName): bool
+    {
+        return $this->service !== null || array_key_exists($scriptName, $this->scriptServices);
     }
 
     /**
@@ -209,6 +237,49 @@ final class DockerComposerConfig
         }
 
         return $this->service;
+    }
+
+    /**
+     * Gets the Docker Compose service name for a script.
+     *
+     * @param  string  $scriptName
+     *   The Composer script name to resolve.
+     *
+     * @return string
+     *   Returns the per-script service override or the default service.
+     *
+     * @throws LogicException
+     *   Thrown when no service is configured for __scriptName__.
+     */
+    public function getServiceForScript(string $scriptName): string
+    {
+        return $this->scriptServices[$scriptName] ?? $this->getService();
+    }
+
+    /**
+     * Creates a copy that uses the service configured for a script.
+     *
+     * @param  string  $scriptName
+     *   The Composer script name to resolve.
+     *
+     * @return self
+     *   Returns configuration with the effective service set as the default.
+     *
+     * @throws LogicException
+     *   Thrown when no service is configured for __scriptName__.
+     */
+    public function forScript(string $scriptName): self
+    {
+        return new self(
+            $this->getServiceForScript($scriptName),
+            $this->scriptServices,
+            $this->mode,
+            $this->composeFiles,
+            $this->projectDirectory,
+            $this->workdir,
+            $this->exclude,
+            $this->unknownKeys,
+        );
     }
 
     /**
@@ -288,7 +359,7 @@ final class DockerComposerConfig
      */
     private static function empty(): self
     {
-        return new self(null, self::MODE_EXEC, [], null, null, [], []);
+        return new self(null, [], self::MODE_EXEC, [], null, null, [], []);
     }
 
     /**
@@ -431,6 +502,55 @@ final class DockerComposerConfig
             }
 
             $values[] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * Reads an object of non-empty `string` values.
+     *
+     * @param  array<string, mixed>  $raw
+     *   The normalized configuration object.
+     *
+     * @param  string  $key
+     *   The configuration key to read.
+     *
+     * @return array<string, string>
+     *   Returns the configured string map, or an empty map when omitted.
+     *
+     * @throws InvalidArgumentException
+     *   Thrown when __key__ is not an object of non-empty `string` values.
+     */
+    private static function stringMap(array $raw, string $key): array
+    {
+        if (! array_key_exists($key, $raw) || $raw[$key] === null) {
+            return [];
+        }
+
+        if (! is_array($raw[$key])) {
+            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
+        }
+
+        $values = [];
+        if ($raw[$key] === []) {
+            return $values;
+        }
+
+        if (array_is_list($raw[$key])) {
+            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
+        }
+
+        foreach ($raw[$key] as $mapKey => $value) {
+            if (! is_string($mapKey) || $mapKey === '') {
+                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must use non-empty string keys.', $key));
+            }
+
+            if (! is_string($value) || $value === '') {
+                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings.', $key));
+            }
+
+            $values[$mapKey] = $value;
         }
 
         return $values;

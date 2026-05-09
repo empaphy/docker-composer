@@ -23,6 +23,7 @@ use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Util\ProcessExecutor;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /**
  * Redirects Composer scripts into a configured Docker Compose service.
@@ -207,14 +208,16 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
             return;
         }
 
-        if (! $config->isConfigured()) {
-            $this->writeMissingConfigWarning($event->getIO());
+        if (! $config->isConfiguredForScript($event->getName())) {
+            $this->writeMissingConfigWarning($event->getIO(), $event->getName());
 
             return;
         }
 
-        $this->writeRedirectNotice($event, $config);
-        $this->runInDocker($event, $config);
+        $scriptConfig = $config->forScript($event->getName());
+
+        $this->writeRedirectNotice($event, $scriptConfig);
+        $this->runInDocker($event, $scriptConfig);
         $event->stopPropagation();
     }
 
@@ -295,18 +298,22 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @param  IOInterface  $io
      *   The Composer IO that receives the warning.
      *
+     * @param  string  $scriptName
+     *   The Composer script name without a configured service.
+     *
      * @return void
      *   Returns nothing.
      */
-    private function writeMissingConfigWarning(IOInterface $io): void
+    private function writeMissingConfigWarning(IOInterface $io, string $scriptName): void
     {
         if ($this->missingConfigWarningWritten) {
             return;
         }
 
-        $io->writeError(
-            '<warning>docker-composer: extra.docker-composer.service is not configured; running Composer scripts on the host.</warning>',
-        );
+        $io->writeError(sprintf(
+            '<warning>docker-composer: no default service and no script-services override for "%s"; running Composer script on the host.</warning>',
+            OutputFormatter::escape($scriptName),
+        ));
         $this->missingConfigWarningWritten = true;
     }
 
@@ -326,8 +333,8 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         $event->getIO()->writeError(sprintf(
             '<info>docker-composer:</info> Running <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
-            $event->getName(),
-            $config->getService(),
+            OutputFormatter::escape($event->getName()),
+            OutputFormatter::escape($config->getService()),
         ));
     }
 
@@ -422,10 +429,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
             return false;
         }
 
-        $services = preg_split('/\R/', trim($output));
-        if ($services === false) {
-            return false;
-        }
+        $services = preg_split('/\R/', trim($output)) ?: [];
 
         foreach ($services as $service) {
             if (trim($service) === $config->getService()) {
