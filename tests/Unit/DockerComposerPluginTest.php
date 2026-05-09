@@ -8,42 +8,32 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use Composer\Composer;
-use Composer\Config;
 use Composer\EventDispatcher\Event;
-use Composer\EventDispatcher\EventDispatcher;
 use Composer\EventDispatcher\ScriptExecutionException;
-use Composer\IO\BufferIO;
-use Composer\Package\RootPackage;
 use Composer\Script\Event as ScriptEvent;
-use Composer\Util\Platform;
-use Composer\Util\ProcessExecutor;
 use empaphy\docker_composer\ComposerProcessRunner;
-use empaphy\docker_composer\ContainerDetector;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
 use empaphy\docker_composer\DockerComposerConfig;
 use empaphy\docker_composer\DockerComposerPlugin;
-use empaphy\docker_composer\EnvironmentContainerDetector;
-use empaphy\docker_composer\OutputCapturingProcessRunner;
-use empaphy\docker_composer\ProcessRunner;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\BackupGlobals;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use PHPUnit\Framework\Attributes\RunInSeparateProcess;
-use Symfony\Component\Console\Output\StreamOutput;
 use Tests\TestCase;
+use Tests\Unit\Mocks\MockCommandBuilder;
+use Tests\Unit\Mocks\MockContainerDetector;
+use Tests\Unit\Mocks\MockOutputCapturingProcessRunner;
+use Tests\Unit\Mocks\MockProcessRunner;
 
 #[CoversClass(DockerComposerPlugin::class)]
+#[CoversClass(ComposerProcessRunner::class)]
 #[CoversClass(DockerComposerConfig::class)]
 #[CoversClass(DockerComposeCommandBuilder::class)]
-#[CoversClass(ComposerProcessRunner::class)]
-#[CoversClass(EnvironmentContainerDetector::class)]
-class DockerComposePluginTest extends TestCase
+class DockerComposerPluginTest extends TestCase
 {
     public function testPluginLifecycleMethodsAreSafe(): void
     {
         [$composer, $io] = $this->createComposer([], []);
-        $plugin = new DockerComposerPlugin(new TestProcessRunner(), new TestContainerDetector(false));
+        $plugin = new DockerComposerPlugin(new MockProcessRunner(), new MockContainerDetector(false));
 
         self::assertSame([], DockerComposerPlugin::getSubscribedEvents());
 
@@ -67,8 +57,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io, false, ['--filter', 'Example']);
 
         $plugin->activate($composer, $io);
@@ -128,8 +118,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -151,8 +141,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('bad<error>script</error>', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -180,8 +170,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $testEvent = new ScriptEvent('test', $composer, $io);
         $csEvent = new ScriptEvent('cs', $composer, $io);
 
@@ -202,8 +192,8 @@ class DockerComposePluginTest extends TestCase
             ['bad<error>script</error>' => ['host-command']],
             ['docker-composer' => []],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('bad<error>script</error>', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -229,8 +219,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
@@ -307,8 +297,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
@@ -339,8 +329,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestOutputCapturingProcessRunner([0, 0], outputs: ['php' . PHP_EOL]);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockOutputCapturingProcessRunner([0, 0], outputs: ['php' . PHP_EOL]);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
@@ -387,8 +377,8 @@ class DockerComposePluginTest extends TestCase
             ['test' => ['host-command']],
             ['docker-composer' => ['service' => 'php']],
         );
-        $runner = new TestOutputCapturingProcessRunner([0, 0, 0], outputs: ['']);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockOutputCapturingProcessRunner([0, 0, 0], outputs: ['']);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
@@ -406,8 +396,8 @@ class DockerComposePluginTest extends TestCase
             ['test' => ['host-command']],
             ['docker-composer' => ['service' => 'php']],
         );
-        $runner = new TestOutputCapturingProcessRunner([7, 0, 0], outputs: ['']);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockOutputCapturingProcessRunner([7, 0, 0], outputs: ['']);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
@@ -431,8 +421,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('cs', $composer, $io, true);
 
         $plugin->activate($composer, $io);
@@ -466,8 +456,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(true));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(true));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -485,8 +475,8 @@ class DockerComposePluginTest extends TestCase
         );
         $plugin = new DockerComposerPlugin(
             null,
-            new TestContainerDetector(false),
-            new TestCommandBuilder(),
+            new MockContainerDetector(false),
+            new MockCommandBuilder(),
         );
         $event = new ScriptEvent('test', $composer, $io);
 
@@ -500,8 +490,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
 
@@ -516,8 +506,8 @@ class DockerComposePluginTest extends TestCase
             ['docker-composer' => ['service' => 'php']],
         );
         $io->setUserInputs(['yes']);
-        $runner = new TestProcessRunner(supportsTty: true);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner(supportsTty: true);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('prompt', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -536,8 +526,8 @@ class DockerComposePluginTest extends TestCase
             ['docker-composer' => ['service' => 'php']],
         );
         $io->setUserInputs(['yes']);
-        $runner = new TestProcessRunner(supportsTty: false);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner(supportsTty: false);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('prompt', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -553,8 +543,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => [],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $firstEvent = new ScriptEvent('test', $composer, $io);
         $secondEvent = new ScriptEvent('cs', $composer, $io);
 
@@ -577,8 +567,8 @@ class DockerComposePluginTest extends TestCase
             ],
             ['docker-composer' => ['service' => 'php']],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
 
@@ -594,8 +584,8 @@ class DockerComposePluginTest extends TestCase
                 'exclude' => ['test'],
             ],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -610,8 +600,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('child', $composer, $io);
         $event->setOriginatingEvent(new Event('parent'));
 
@@ -627,8 +617,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner([0, 7], 'docker failed');
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner([0, 7], 'docker failed');
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -647,8 +637,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner([7], 'up failed');
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner([7], 'up failed');
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -670,8 +660,8 @@ class DockerComposePluginTest extends TestCase
                 'mode' => 'run',
             ],
         ]);
-        $runner = new TestProcessRunner([7], 'run failed');
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner([7], 'run failed');
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -690,8 +680,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner([0, 7]);
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner([0, 7]);
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -709,70 +699,12 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['mode' => 'invalid'],
         ]);
-        $plugin = new DockerComposerPlugin(new TestProcessRunner(), new TestContainerDetector(false));
+        $plugin = new DockerComposerPlugin(new MockProcessRunner(), new MockContainerDetector(false));
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('extra.docker-composer.mode must be "exec" or "run".');
 
         $plugin->activate($composer, $io);
-    }
-
-    public function testConfigDefaultsWhenDockerComposerExtraIsMissing(): void
-    {
-        [$composer] = $this->createComposer([], []);
-
-        $config = DockerComposerConfig::fromComposer($composer);
-
-        self::assertFalse($config->isConfigured());
-        self::assertSame(DockerComposerConfig::MODE_EXEC, $config->getMode());
-        self::assertSame([], $config->getComposeFiles());
-        self::assertNull($config->getProjectDirectory());
-        self::assertNull($config->getWorkdir());
-        self::assertFalse($config->isExcluded('test'));
-        self::assertSame([], $config->getUnknownKeys());
-    }
-
-    public function testConfigAcceptsEmptyServiceMapping(): void
-    {
-        [$composer] = $this->createComposer([], [
-            'docker-composer' => [
-                'service-mapping' => [],
-            ],
-        ]);
-
-        $config = DockerComposerConfig::fromComposer($composer);
-
-        self::assertFalse($config->isConfiguredForScript('test'));
-    }
-
-    public function testConfigRejectsInvalidShapes(): void
-    {
-        $this->assertInvalidConfig(['docker-composer' => 'invalid'], 'extra.docker-composer must be an object.');
-        $this->assertInvalidConfig(['docker-composer' => [0 => 'invalid']], 'extra.docker-composer must be an object.');
-        $this->assertInvalidConfig(['docker-composer' => ['service' => '']], 'extra.docker-composer.service must be a non-empty string.');
-        $this->assertInvalidConfig(['docker-composer' => ['compose-files' => '']], 'extra.docker-composer.compose-files must contain non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['exclude' => ['script' => true]]], 'extra.docker-composer.exclude must be a list of strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['exclude' => [1]]], 'extra.docker-composer.exclude must contain only non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => 'php']], 'extra.docker-composer.service-mapping must be an object of strings or lists of strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php']]], 'extra.docker-composer.service-mapping must be an object of strings or lists of strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['' => 'test']]], 'extra.docker-composer.service-mapping must use non-empty string keys.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => '']]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['test' => 'test']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => ['']]]], 'extra.docker-composer.service-mapping must contain only non-empty strings or lists of non-empty strings.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => []]]], 'extra.docker-composer.service-mapping must map each service to at least one script.');
-        $this->assertInvalidConfig(['docker-composer' => ['service-mapping' => ['php' => 'test', 'php-tools' => ['test']]]], 'extra.docker-composer.service-mapping must not assign a script to multiple services.');
-
-    }
-
-    public function testUnconfiguredServiceAccessFails(): void
-    {
-        [$composer] = $this->createComposer([], []);
-        $config = DockerComposerConfig::fromComposer($composer);
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Docker Compose service is not configured.');
-
-        $config->getService();
     }
 
     public function testUnknownConfigKeysWarnAndContinue(): void
@@ -783,7 +715,7 @@ class DockerComposePluginTest extends TestCase
                 'future-key' => true,
             ],
         ]);
-        $plugin = new DockerComposerPlugin(new TestProcessRunner(), new TestContainerDetector(false));
+        $plugin = new DockerComposerPlugin(new MockProcessRunner(), new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->activate($composer, $io);
@@ -804,8 +736,8 @@ class DockerComposePluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         $plugin->activate($composer, $io);
@@ -831,8 +763,8 @@ class DockerComposePluginTest extends TestCase
             ],
         );
         $plugin = new DockerComposerPlugin(
-            new TestProcessRunner(),
-            new TestContainerDetector(false),
+            new MockProcessRunner(),
+            new MockContainerDetector(false),
         );
         $event = new ScriptEvent('test', $composer, $io);
 
@@ -849,8 +781,8 @@ class DockerComposePluginTest extends TestCase
         [$composer, $io] = $this->createComposer([], [
             'docker-composer' => ['service' => 'php'],
         ]);
-        $runner = new TestProcessRunner();
-        $plugin = new DockerComposerPlugin($runner, new TestContainerDetector(false));
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
         $event = new ScriptEvent('test', $composer, $io);
 
         putenv('DOCKER_COMPOSER_DISABLE=1');
@@ -865,201 +797,6 @@ class DockerComposePluginTest extends TestCase
         self::assertSame([], $runner->commands);
     }
 
-    public function testCommandBuilderStringifiesNullAndBoolArguments(): void
-    {
-        [$composer, $io] = $this->createComposer([], [
-            'docker-composer' => ['service' => 'php'],
-        ]);
-        $config = DockerComposerConfig::fromComposer($composer);
-        $event = new ScriptEvent('test', $composer, $io, false, [null, true]);
-
-        $command = (new DockerComposeCommandBuilder())->buildScriptCommand($config, $event, false);
-
-        self::assertSame(['--', '', '1'], array_slice($command, -3));
-    }
-
-    public function testCommandBuilderForwardsComposerProcessTimeout(): void
-    {
-        [$composer, $io] = $this->createComposer([], [
-            'docker-composer' => ['service' => 'php'],
-        ]);
-        $previousTimeout = ProcessExecutor::getTimeout();
-
-        ProcessExecutor::setTimeout(42);
-        try {
-            $config = DockerComposerConfig::fromComposer($composer);
-            $event = new ScriptEvent('test', $composer, $io);
-
-            $command = (new DockerComposeCommandBuilder())->buildScriptCommand($config, $event, false);
-        } finally {
-            ProcessExecutor::setTimeout($previousTimeout);
-        }
-
-        self::assertSame('--timeout=42', $command[count($command) - 2]);
-    }
-
-    public function testCommandBuilderRejectsNonScalarArguments(): void
-    {
-        $method = new \ReflectionMethod(DockerComposeCommandBuilder::class, 'stringifyArgument');
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Composer script arguments must be scalar values.');
-
-        $method->invoke(new DockerComposeCommandBuilder(), []);
-    }
-
-    #[BackupGlobals(true)]
-    public function testEnvironmentDetectorUsesExplicitMarker(): void
-    {
-        putenv('DOCKER_COMPOSER_INSIDE=1');
-        try {
-            self::assertTrue((new EnvironmentContainerDetector())->isInsideContainer());
-        } finally {
-            putenv('DOCKER_COMPOSER_INSIDE');
-        }
-    }
-
-    public function testEnvironmentDetectorUsesContainerFilesAndCgroups(): void
-    {
-        $getEnv = static fn(string $name): bool => false;
-        $missingFiles = static fn(string $path): bool => false;
-
-        self::assertTrue((new EnvironmentContainerDetector(
-            $getEnv,
-            static fn(string $path): bool => $path === '/.dockerenv',
-            static fn(string $path): bool => false,
-        ))->isInsideContainer());
-        self::assertFalse((new EnvironmentContainerDetector(
-            $getEnv,
-            $missingFiles,
-            static fn(string $path): bool => false,
-        ))->isInsideContainer());
-        self::assertFalse((new EnvironmentContainerDetector(
-            $getEnv,
-            $missingFiles,
-            static fn(string $path): string => '0::/user.slice',
-        ))->isInsideContainer());
-        self::assertTrue((new EnvironmentContainerDetector(
-            $getEnv,
-            $missingFiles,
-            static fn(string $path): string => '0::/kubepods.slice/containerd',
-        ))->isInsideContainer());
-    }
-
-    public function testComposerProcessRunnerDelegatesToProcessExecutor(): void
-    {
-        $io = new BufferIO();
-        $runner = new ComposerProcessRunner($io, static fn(): bool => true);
-        $processExecutor = new TestProcessExecutor(3, 4, 'executor error');
-        $property = new \ReflectionProperty($runner, 'processExecutor');
-        $property->setValue($runner, $processExecutor);
-
-        self::assertTrue($runner->supportsTty());
-        self::assertSame(3, $runner->run(['docker', 'compose']));
-        self::assertSame(4, $runner->run(['docker', 'compose'], true));
-        self::assertSame('executor error', $runner->getErrorOutput());
-        $expectedCommand = implode(' ', array_map([ProcessExecutor::class, 'escape'], ['docker', 'compose']));
-
-        self::assertSame([$expectedCommand], $processExecutor->commands);
-        self::assertSame([$expectedCommand], $processExecutor->ttyCommands);
-    }
-
-    public function testComposerProcessRunnerCapturesOutput(): void
-    {
-        $io = new BufferIO();
-        $runner = new ComposerProcessRunner($io, static fn(): bool => true);
-        $processExecutor = new TestProcessExecutor(3, 4, 'executor error', 'captured output');
-        $property = new \ReflectionProperty($runner, 'processExecutor');
-        $property->setValue($runner, $processExecutor);
-
-        $output = '';
-
-        self::assertSame(3, $runner->runWithOutput(['docker', 'compose'], $output));
-        self::assertSame('captured output', $output);
-    }
-
-    public function testComposerProcessRunnerFallsBackWhenCurrentProcessDoesNotSupportTty(): void
-    {
-        $io = new BufferIO();
-        $runner = new ComposerProcessRunner($io, static fn(): bool => false);
-        $processExecutor = new TestProcessExecutor(3, 4, 'executor error');
-        $property = new \ReflectionProperty($runner, 'processExecutor');
-        $property->setValue($runner, $processExecutor);
-
-        self::assertFalse($runner->supportsTty());
-        self::assertSame(3, $runner->run(['docker', 'compose'], true));
-        $expectedCommand = implode(' ', array_map([ProcessExecutor::class, 'escape'], ['docker', 'compose']));
-
-        self::assertSame([$expectedCommand], $processExecutor->commands);
-        self::assertSame([], $processExecutor->ttyCommands);
-    }
-
-    public function testComposerProcessRunnerUsesComposerPlatformTtyDetection(): void
-    {
-        $method = new \ReflectionMethod(ComposerProcessRunner::class, 'detectTtySupport');
-
-        self::assertSame(Platform::isTty(), $method->invoke(null));
-    }
-
-    #[RunInSeparateProcess]
-    #[PreserveGlobalState(false)]
-    public function testComposerProcessRunnerUsesStreamFallbackWithoutComposerPlatform(): void
-    {
-        $method = new \ReflectionMethod(ComposerProcessRunner::class, 'detectTtySupport');
-        $autoloaders = spl_autoload_functions() ?: [];
-
-        foreach ($autoloaders as $autoload) {
-            spl_autoload_unregister($autoload);
-        }
-
-        try {
-            $supportsTty = $method->invoke(null);
-        } finally {
-            foreach ($autoloaders as $autoload) {
-                spl_autoload_register($autoload);
-            }
-        }
-
-        self::assertSame(defined('STDOUT') && stream_isatty(STDOUT), $supportsTty);
-    }
-
-    /**
-     * @param array<string, list<string>> $scripts
-     * @param array<string, mixed>        $extra
-     *
-     * @return array{0: Composer, 1: BufferIO}
-     */
-    private function createComposer(array $scripts, array $extra): array
-    {
-        $composer = new Composer();
-        $package = new RootPackage('root/project', '1.0.0', '1.0.0');
-        $package->setScripts($scripts);
-        $package->setExtra($extra);
-        $composer->setPackage($package);
-        $composer->setConfig(new Config(false, getcwd() ?: null));
-
-        $io = new BufferIO('', StreamOutput::VERBOSITY_NORMAL);
-        $dispatcher = new EventDispatcher($composer, $io);
-        $composer->setEventDispatcher($dispatcher);
-
-        return [$composer, $io];
-    }
-
-    /**
-     * @param array<string, mixed> $extra
-     */
-    private function assertInvalidConfig(array $extra, string $message): void
-    {
-        [$composer] = $this->createComposer([], $extra);
-
-        try {
-            DockerComposerConfig::fromComposer($composer);
-            self::fail(sprintf('Expected invalid config exception for message "%s".', $message));
-        } catch (\InvalidArgumentException $exception) {
-            self::assertSame($message, $exception->getMessage());
-        }
-    }
-
     private function assertScriptExecutionFails(DockerComposerPlugin $plugin, ScriptEvent $event): ScriptExecutionException
     {
         try {
@@ -1069,147 +806,5 @@ class DockerComposePluginTest extends TestCase
         }
 
         self::fail('Expected Docker script execution to fail.');
-    }
-}
-
-final class TestContainerDetector implements ContainerDetector
-{
-    public function __construct(private bool $inside) {}
-
-    public function isInsideContainer(): bool
-    {
-        return $this->inside;
-    }
-}
-
-class TestProcessRunner implements ProcessRunner
-{
-    /** @var list<list<string>> */
-    public array $commands = [];
-
-    /** @var list<bool> */
-    public array $tty = [];
-
-    /** @var list<int> */
-    private array $exitCodes;
-
-    /**
-     * @param list<int> $exitCodes
-     */
-    public function __construct(
-        array $exitCodes = [0],
-        private string $errorOutput = '',
-        private bool $supportsTty = false,
-    ) {
-        $this->exitCodes = $exitCodes;
-    }
-
-    public function run(array $command, bool $tty = false): int
-    {
-        $this->commands[] = $command;
-        $this->tty[] = $tty;
-
-        return array_shift($this->exitCodes) ?? 0;
-    }
-
-    public function getErrorOutput(): string
-    {
-        return $this->errorOutput;
-    }
-
-    public function supportsTty(): bool
-    {
-        return $this->supportsTty;
-    }
-}
-
-final class TestOutputCapturingProcessRunner extends TestProcessRunner implements OutputCapturingProcessRunner
-{
-    /** @var list<string> */
-    private array $outputs;
-
-    /**
-     * @param list<int>    $exitCodes
-     * @param list<string> $outputs
-     */
-    public function __construct(
-        array $exitCodes = [0],
-        string $errorOutput = '',
-        bool $supportsTty = false,
-        array $outputs = [],
-    ) {
-        parent::__construct($exitCodes, $errorOutput, $supportsTty);
-        $this->outputs = $outputs;
-    }
-
-    public function runWithOutput(array $command, string &$output): int
-    {
-        $output = array_shift($this->outputs) ?? '';
-
-        return $this->run($command);
-    }
-}
-
-final class TestCommandBuilder extends DockerComposeCommandBuilder
-{
-    public function buildRunningServicesCommand(DockerComposerConfig $config): array
-    {
-        return ['php', '-r', 'exit(1);'];
-    }
-
-    public function buildUpCommand(DockerComposerConfig $config): array
-    {
-        return ['php', '-r', 'exit(0);'];
-    }
-
-    public function buildScriptCommand(DockerComposerConfig $config, ScriptEvent $event, bool $interactive): array
-    {
-        return ['php', '-r', 'exit(0);'];
-    }
-}
-
-final class TestProcessExecutor extends ProcessExecutor
-{
-    /** @var list<string> */
-    public array $commands = [];
-
-    /** @var list<string> */
-    public array $ttyCommands = [];
-
-    /**
-     * @noinspection PhpMissingParentConstructorInspection
-     */
-    public function __construct(
-        private int $executeExitCode,
-        private int $ttyExitCode,
-        private string $testErrorOutput,
-        private string $testOutput = '',
-    ) {}
-
-    /**
-     * @param mixed $command
-     * @param mixed $output
-     */
-    public function execute($command, &$output = null, ?string $cwd = null): int
-    {
-        $this->commands[] = (string) $command;
-        $output = $this->testOutput;
-
-        return $this->executeExitCode;
-    }
-
-    /**
-     * @param mixed $command
-     */
-    public function executeTty($command, ?string $cwd = null): int
-    {
-        $this->ttyCommands[] = (string) $command;
-
-        return $this->ttyExitCode;
-    }
-
-    public function getErrorOutput(): string
-    {
-        return $this->testErrorOutput;
     }
 }

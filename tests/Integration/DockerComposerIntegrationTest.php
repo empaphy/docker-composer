@@ -107,8 +107,9 @@ class DockerComposerIntegrationTest extends TestCase
 
     /**
      * @param array<string, mixed> $dockerComposerConfig
+     * @param list<array<string, mixed>>|null $repositories
      */
-    private function createProject(array $dockerComposerConfig): string
+    private function createProject(array $dockerComposerConfig, ?array $repositories = null, string $requireVersion = '*'): string
     {
         $projectDirectory = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
             . DIRECTORY_SEPARATOR
@@ -125,13 +126,13 @@ class DockerComposerIntegrationTest extends TestCase
             'description' => 'Temporary docker-composer integration fixture.',
             'minimum-stability' => 'dev',
             'prefer-stable' => true,
-            'repositories' => [[
+            'repositories' => $repositories ?? [[
                 'type' => 'path',
                 'url' => dirname(__DIR__, 2),
                 'options' => ['symlink' => false],
             ]],
             'require' => [
-                'empaphy/docker-composer' => '*',
+                'empaphy/docker-composer' => $requireVersion,
             ],
             'config' => [
                 'allow-plugins' => [
@@ -174,6 +175,27 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
         return $projectDirectory;
     }
 
+    /**
+     * @param list<array<string, mixed>> $repositories
+     */
+    protected function updateProjectRepositories(string $projectDirectory, array $repositories): void
+    {
+        $composerJsonPath = $projectDirectory . '/composer.json';
+        $composerJson = json_decode((string) file_get_contents($composerJsonPath), true);
+        if (! is_array($composerJson)) {
+            throw new \RuntimeException(sprintf('Unable to decode "%s".', $composerJsonPath));
+        }
+
+        $composerJson['repositories'] = $repositories;
+
+        $encodedComposerJson = json_encode($composerJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($encodedComposerJson === false) {
+            throw new \RuntimeException(sprintf('Unable to encode "%s".', $composerJsonPath));
+        }
+
+        file_put_contents($composerJsonPath, $encodedComposerJson . PHP_EOL);
+    }
+
     private function getComposerImage(): string
     {
         $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
@@ -182,6 +204,28 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
         }
 
         return 'composer:' . $composerVersion;
+    }
+
+    /**
+     * Gets a Composer require command for the active integration Composer version.
+     *
+     * @param  string  $package
+     *   The package constraint to require.
+     *
+     * @return list<string>
+     *   Returns a Composer require command compatible with the active version.
+     */
+    protected function getRequireCommand(string $package): array
+    {
+        $command = ['composer', 'require', $package, '--no-interaction', '--no-progress'];
+        $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
+        if ($composerVersion !== false && $composerVersion !== 'v2') {
+            return $command;
+        }
+
+        array_splice($command, 2, 0, '-m');
+
+        return $command;
     }
 
     private function installProject(string $projectDirectory): void
@@ -193,7 +237,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
      * @param list<string>          $command
      * @param array<string, string> $environment
      */
-    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): ProcessResult
+    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): void
     {
         $descriptorSpec = [
             1 => ['pipe', 'w'],
@@ -215,18 +259,15 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
         fclose($pipes[2]);
         $exitCode = proc_close($process);
 
-        $result = new ProcessResult($exitCode, (string) $stdout, (string) $stderr);
-        if ($failOnError && $result->exitCode !== 0) {
+        if ($failOnError && $exitCode !== 0) {
             self::fail(sprintf(
                 "Command failed with exit code %d:\n%s\n\nSTDOUT:\n%s\n\nSTDERR:\n%s",
-                $result->exitCode,
+                $exitCode,
                 implode(' ', $command),
-                $result->stdout,
-                $result->stderr,
+                $stdout,
+                $stderr,
             ));
         }
-
-        return $result;
     }
 
     private function removeDirectory(string $directory): void
@@ -250,13 +291,4 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
 
         rmdir($directory);
     }
-}
-
-final class ProcessResult
-{
-    public function __construct(
-        public int $exitCode,
-        public string $stdout,
-        public string $stderr,
-    ) {}
 }

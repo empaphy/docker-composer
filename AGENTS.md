@@ -2,7 +2,12 @@
 In commit messages use conventional commits and provide justification of the changes in the body.
 In all interactions and plans be extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 
+## Plan Mode
+Make plans extremely concise — sacrifice grammar for the sake of concision. Conciseness alone does not justify omitting information or intent.
+At the end of each plan, give me a list of unresolved questions to answer, if any.
+
 ## Tests
+When writing unit tests, create a TestCase class for each class being tested.
 At the end of every task, execute these commands to ensure the quality of the code:
 - `composer style-fix`
 - `composer stan`
@@ -16,9 +21,9 @@ If PHPStan cannot model valid runtime behavior, use the narrowest fix:
  2. otherwise add a targeted `@phpstan-ignore <identifier>` on the exact line.
 Do not add broad suppressions, baselines, or unclear type workarounds.
 
-## Plan Mode
-Make plans extremely concise — sacrifice grammar for the sake of concision. Conciseness alone does not justify omitting information or intent.
-At the end of each plan, give me a list of unresolved questions to answer, if any.
+## Coding Style
+All PHP code must adhere to PER Coding Syle 3.0, which also includes PSR-1: Basic Coding Standard.
+Files should _either_ declare symbols _or_ cause side-effects but not both.
 
 ## PHPDoc
 Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. Include descriptive `@param` and `@return` tags for all argument and return types, and `@var` tags for all parameters.
@@ -87,10 +92,3 @@ class
 
 ## Tools
 If a tool, command or integration fails that one would expect to be working, do not try a different approach. Instead, investigate the problem and suggest a fix to the user.
-
-## CI
-CI runs in GitHub Actions. It checks the following:
-- PHP Coding Style using PHP-CS-Fixer
-- Static Analysis using PHPStan
-- Unit Tests using PHPUnit
-- Integration Tests using PHPUnit
