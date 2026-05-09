@@ -311,7 +311,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         $io->writeError(sprintf(
-            '<warning>docker-composer: no default service and no script-services override for "%s"; running Composer script on the host.</warning>',
+            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer script on the host.</warning>',
             OutputFormatter::escape($scriptName),
         ));
         $this->missingConfigWarningWritten = true;

@@ -26,9 +26,9 @@ Configure the target service in the root package's `composer.json`:
             "project-directory": ".",
             "workdir": "/usr/src/app",
             "exclude": ["host-only-script"],
-            "script-services": {
-                "test": "php-test",
-                "stan": "php-tools"
+            "service-mapping": {
+                "php-test": "test",
+                "php-tools": ["stan", "cs"]
             }
         }
     }
@@ -36,7 +36,7 @@ Configure the target service in the root package's `composer.json`:
 ```
 
 Configure `service` for the default redirection target, or configure
-`script-services` for scripts that have no default. If neither resolves the
+`service-mapping` for scripts that have no default. If neither resolves the
 current script, the plugin warns once per Composer run and lets host scripts run
 normally.
 
@@ -48,7 +48,7 @@ Supported keys:
 - `project-directory`: optional Docker Compose project directory.
 - `workdir`: optional working directory inside the container.
 - `exclude`: exact Composer script/event names that should run on the host.
-- `script-services`: exact Composer script/event names mapped to service overrides.
+- `service-mapping`: Docker Compose service names mapped to one script or a list of scripts.
 
 Unknown keys warn and are ignored. Invalid known values fail before Docker is run.
 
@@ -58,7 +58,7 @@ When Composer dispatches a top-level script on the host, the plugin runs the sam
 script inside the configured service and prevents the host-side script from
 continuing.
 
-If `script-services` contains the current script name, that service is used
+If `service-mapping` contains the current script name under a service, that service is used
 instead of the default `service`.
 
 In `exec` mode, the plugin checks whether the service is already running:

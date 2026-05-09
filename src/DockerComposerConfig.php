@@ -59,7 +59,7 @@ final class DockerComposerConfig
         'project-directory',
         'workdir',
         'exclude',
-        'script-services',
+        'service-mapping',
     ];
 
     /**
@@ -68,7 +68,7 @@ final class DockerComposerConfig
     private ?string $service;
 
     /**
-     * Stores Docker Compose service overrides by Composer script name.
+     * Stores Docker Compose service overrides keyed by Composer script name.
      *
      * @var array<string, string>
      */
@@ -119,7 +119,7 @@ final class DockerComposerConfig
      *   The Docker Compose service name, or `null` when missing.
      *
      * @param  array<string, string>  $scriptServices
-     *   The Docker Compose service overrides keyed by Composer script name.
+     *   The Docker Compose services keyed by Composer script name.
      *
      * @param  string  $mode
      *   The Docker Compose mode, either `"exec"` or `"run"`.
@@ -186,7 +186,7 @@ final class DockerComposerConfig
         $raw = self::object($raw);
         $unknownKeys = array_values(array_diff(array_keys($raw), self::KNOWN_KEYS));
         $service = self::optionalString($raw, 'service');
-        $scriptServices = self::stringMap($raw, 'script-services');
+        $scriptServices = self::serviceMapping($raw);
         $mode = self::mode($raw);
         $composeFiles = self::composeFiles($raw);
         $projectDirectory = self::optionalString($raw, 'project-directory');
@@ -508,28 +508,27 @@ final class DockerComposerConfig
     }
 
     /**
-     * Reads an object of non-empty `string` values.
+     * Reads service mapping settings as Composer script service overrides.
      *
      * @param  array<string, mixed>  $raw
      *   The normalized configuration object.
      *
-     * @param  string  $key
-     *   The configuration key to read.
-     *
      * @return array<string, string>
-     *   Returns the configured string map, or an empty map when omitted.
+     *   Returns Docker Compose services keyed by Composer script name.
      *
      * @throws InvalidArgumentException
-     *   Thrown when __key__ is not an object of non-empty `string` values.
+     *   Thrown when `service-mapping` is not an object of non-empty strings
+     *   or lists of non-empty strings.
      */
-    private static function stringMap(array $raw, string $key): array
+    private static function serviceMapping(array $raw): array
     {
+        $key = 'service-mapping';
         if (! array_key_exists($key, $raw) || $raw[$key] === null) {
             return [];
         }
 
         if (! is_array($raw[$key])) {
-            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
+            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings or lists of strings.', $key));
         }
 
         $values = [];
@@ -538,19 +537,37 @@ final class DockerComposerConfig
         }
 
         if (array_is_list($raw[$key])) {
-            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings.', $key));
+            throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must be an object of strings or lists of strings.', $key));
         }
 
-        foreach ($raw[$key] as $mapKey => $value) {
-            if (! is_string($mapKey) || $mapKey === '') {
+        foreach ($raw[$key] as $service => $scripts) {
+            if (! is_string($service) || $service === '') {
                 throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must use non-empty string keys.', $key));
             }
 
-            if (! is_string($value) || $value === '') {
-                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings.', $key));
+            if (is_string($scripts)) {
+                $scripts = [$scripts];
             }
 
-            $values[$mapKey] = $value;
+            if (! is_array($scripts) || ! array_is_list($scripts)) {
+                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings or lists of non-empty strings.', $key));
+            }
+
+            foreach ($scripts as $script) {
+                if (! is_string($script) || $script === '') {
+                    throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings or lists of non-empty strings.', $key));
+                }
+
+                if (array_key_exists($script, $values)) {
+                    throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must not assign a script to multiple services.', $key));
+                }
+
+                $values[$script] = $service;
+            }
+
+            if ($scripts === []) {
+                throw new InvalidArgumentException(sprintf('extra.docker-composer.%s must contain only non-empty strings.', $key));
+            }
         }
 
         return $values;

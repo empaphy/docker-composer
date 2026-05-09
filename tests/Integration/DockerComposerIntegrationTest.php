@@ -53,12 +53,12 @@ class DockerComposerIntegrationTest extends TestCase
         self::assertSame('1', trim((string) file_get_contents($projectDirectory . '/lifecycle.txt')));
     }
 
-    public function testScriptServiceOverrideRedirectsToConfiguredService(): void
+    public function testServiceMappingOverrideRedirectsToConfiguredService(): void
     {
         $projectDirectory = $this->createProject([
             'service' => 'php',
-            'script-services' => [
-                'mark' => 'php_tools',
+            'service-mapping' => [
+                'php_tools' => 'mark',
             ],
             'compose-files' => 'docker-compose.yaml',
             'workdir' => '/usr/src/app',
