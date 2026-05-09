@@ -38,7 +38,8 @@ jobs:
           XDEBUG_MODE: 'coverage'
         #language=bash
         run: |
-          vendor/bin/paratest \
+          vendor/bin/phpunit \
+            --testsuite          'Unit' \
             --log-junit          'var/test-results/${{ inputs.os }}-php${{ matrix.php-version }}.junit.xml' \
             --coverage-cobertura 'var/coverage/${{ inputs.os }}-php${{ matrix.php-version }}/coverage.cobertura.xml'
 

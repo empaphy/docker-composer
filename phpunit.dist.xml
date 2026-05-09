@@ -7,7 +7,6 @@
          beStrictAboutChangesToGlobalState="true"
          beStrictAboutCoverageMetadata="true"
          beStrictAboutOutputDuringTests="true"
-         defaultTestSuite="Unit"
          displayDetailsOnIncompleteTests="true"
          displayDetailsOnTestsThatTriggerDeprecations="true"
          displayDetailsOnTestsThatTriggerErrors="true"

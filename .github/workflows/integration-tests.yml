@@ -50,6 +50,6 @@ jobs:
       - name: Run Docker Composer Integration Tests
         shell: bash
         env:
-          DOCKER_COMPOSER_INTEGRATION: '1'
           DOCKER_COMPOSER_TEST_COMPOSER_VERSION: ${{ inputs.composer-version }}
+          XDEBUG_MODE: 'off'
         run: vendor/bin/phpunit --testsuite Integration

@@ -17,13 +17,6 @@ class DockerComposerIntegrationTest extends TestCase
     /** @var list<string> */
     private array $projectDirectories = [];
 
-    protected function setUp(): void
-    {
-        if (getenv('DOCKER_COMPOSER_INTEGRATION') !== '1') {
-            self::markTestSkipped('Docker Composer integration tests require DOCKER_COMPOSER_INTEGRATION=1.');
-        }
-    }
-
     protected function tearDown(): void
     {
         foreach ($this->projectDirectories as $projectDirectory) {

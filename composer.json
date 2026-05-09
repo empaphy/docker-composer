@@ -23,13 +23,12 @@
         "composer-plugin-api": ">=1.1"
     },
     "require-dev": {
-        "brianium/paratest": "^7.2",
         "composer/composer": ">=1.1",
         "empaphy/filharmonic": "^1",
         "friendsofphp/php-cs-fixer": "^3",
         "phpstan/phpstan": "^2",
         "phpstan/phpstan-phpunit": "^2",
-        "phpunit/phpunit": "^10 <10.5.32 || >=11.2"
+        "phpunit/phpunit": ">=10"
     },
     "autoload": {
         "psr-4": {
@@ -44,15 +43,18 @@
     "config": {
         "audit": {
             "ignore": {
-                "PKSA-z3gr-8qht-p93v": "'PHPUnit Vulnerable to Unsafe Deserialization in PHPT Code Coverage Handling' – We don't use PHPT"
+                "PKSA-z3gr-8qht-p93v"
+                : "'PHPUnit Vulnerable to Unsafe Deserialization in PHPT Code Coverage Handling' – We don't use PHPT"
             }
         }
     },
     "scripts": {
-        "style-check": "php-cs-fixer check",
-        "style-fix": "php-cs-fixer fix",
-        "stan": "phpstan --memory-limit=1G",
-        "test": "phpunit"
+        "style-check": "XDEBUG_MODE=off php-cs-fixer check",
+        "style-fix": "XDEBUG_MODE=off php-cs-fixer fix",
+        "stan": "XDEBUG_MODE=off phpstan --memory-limit=1G",
+        "test": "XDEBUG_MODE=coverage phpunit --coverage-text",
+        "test-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
+        "test-unit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
     },
     "extra": {
         "class": "empaphy\\docker_composer\\DockerComposerPlugin",

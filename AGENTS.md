@@ -1,19 +1,28 @@
-# AGENTS
-
 ## General Instructions
-- Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`.
-  - Include descriptive `@param` and `@return` tags for all argument and return types, and `@var` tags for all parameters.
-- In commit messages use conventional commits and provide justification of the changes in the body.
-- In all interactions and plans be extremely concise; sacrifice grammar for the sake of concision.
-  - Conciseness alone does not justify omitting information or intent.
-- At the end of every task, run `composer style-fix` to ensure the coding style is consistent.
+In commit messages use conventional commits and provide justification of the changes in the body.
+In all interactions and plans be extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
+
+## Tests
+At the end of every task, execute these commands to ensure the quality of the code:
+- `composer style-fix`
+- `composer stan`
+- `composer test`
+
+## PHPStan
+Prefer clear, performant code over reshaping code only to satisfy PHPStan.
+Treat PHPStan findings as likely real; fix root causes first.
+If PHPStan cannot model valid runtime behavior, use the narrowest fix:
+ 1. add explicit control flow or `assert()` when it improves clarity;
+ 2. otherwise add a targeted `@phpstan-ignore <identifier>` on the exact line.
+Do not add broad suppressions, baselines, or unclear type workarounds.
 
 ## Plan Mode
-- Make the plan extremely concise — sacrifice grammar for the sake of concision.
-  - Conciseness alone does not justify omitting information or intent.
-- At the end of each plan, give me a list of unresolved questions to answer, if any.
+Make plans extremely concise — sacrifice grammar for the sake of concision. Conciseness alone does not justify omitting information or intent.
+At the end of each plan, give me a list of unresolved questions to answer, if any.
 
 ## PHPDoc
+Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. Include descriptive `@param` and `@return` tags for all argument and return types, and `@var` tags for all parameters.
+
 When writing PHPDocs, observe this format:
 
 ```php
@@ -27,7 +36,7 @@ class
     /**
      * Property desciptions go here.
      * 
-     * `@var` doctags never get a description.
+     * `@var` doctags never get a description:
      * 
      * @var list<string>
      */
