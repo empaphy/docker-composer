@@ -257,7 +257,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
     {
         $command = ['composer', 'require', $package, '--no-interaction', '--no-progress'];
         $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
-        if ($composerVersion === false || str_starts_with($composerVersion, '1.')) {
+        if ($composerVersion !== false && $composerVersion !== 'v2') {
             return $command;
         }
 
