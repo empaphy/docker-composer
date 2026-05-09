@@ -10,6 +10,8 @@ namespace Tests\Unit;
 
 use Composer\EventDispatcher\Event;
 use Composer\EventDispatcher\ScriptExecutionException;
+use Composer\Plugin\PluginEvents;
+use Composer\Plugin\PreCommandRunEvent;
 use Composer\Script\Event as ScriptEvent;
 use empaphy\docker_composer\ComposerProcessRunner;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
@@ -23,6 +25,7 @@ use Tests\Unit\Mocks\MockCommandBuilder;
 use Tests\Unit\Mocks\MockContainerDetector;
 use Tests\Unit\Mocks\MockOutputCapturingProcessRunner;
 use Tests\Unit\Mocks\MockProcessRunner;
+use Symfony\Component\Console\Input\ArgvInput;
 
 #[CoversClass(DockerComposerPlugin::class)]
 #[CoversClass(ComposerProcessRunner::class)]
@@ -558,6 +561,131 @@ class DockerComposerPluginTest extends TestCase
         self::assertSame(1, substr_count($io->getOutput(), 'no default service and no service-mapping override for "test"'));
     }
 
+    public function testRedirectsInstallCommandBeforeHostExecution(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'compose-files' => ['docker-compose.yaml'],
+                'project-directory' => '.',
+                'workdir' => '/usr/src/app',
+            ],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', '--no-interaction', 'install', '--no-dev', '--working-dir', 'app', '--prefer-dist']);
+        $input->setInteractive(false);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+        $exception = $this->assertCommandExecutionStops($plugin, $event);
+
+        self::assertSame(0, $exception->getCode());
+        self::assertSame([
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'up',
+                '-d',
+                'php',
+            ],
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'exec',
+                '-T',
+                '--workdir',
+                '/usr/src/app',
+                '--env',
+                'DOCKER_COMPOSER_INSIDE=1',
+                'php',
+                'composer',
+                '--no-interaction',
+                'install',
+                '--no-dev',
+                '--prefer-dist',
+            ],
+        ], $runner->commands);
+        self::assertStringContainsString('Running composer install in Docker Compose service php.', $io->getOutput());
+    }
+
+    public function testRedirectsDependencyCommandsBeforeHostExecution(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'mode' => 'run',
+            ],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+
+        $plugin->activate($composer, $io);
+
+        foreach (['update', 'require', 'remove', 'reinstall'] as $commandName) {
+            $input = new ArgvInput(['composer', $commandName, 'vendor/package']);
+            $input->setInteractive(false);
+            $this->assertCommandExecutionStops($plugin, new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, $commandName));
+        }
+
+        self::assertSame([
+            ['run', 'composer', 'update', 'vendor/package'],
+            ['run', 'composer', 'require', 'vendor/package'],
+            ['run', 'composer', 'remove', 'vendor/package'],
+            ['run', 'composer', 'reinstall', 'vendor/package'],
+        ], array_map(
+            static fn(array $command): array => [$command[2], $command[8], $command[9], $command[10]],
+            $runner->commands,
+        ));
+    }
+
+    public function testExcludedCommandFallsThrough(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'exclude' => ['install'],
+            ],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+    }
+
+    public function testCommandDockerFailurePreservesExitCode(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $runner = new MockProcessRunner([0, 7], 'install failed');
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+
+        $exception = $this->assertCommandExecutionStops($plugin, $event);
+
+        self::assertSame(7, $exception->getCode());
+        self::assertStringContainsString('Docker Compose exec command failed with exit code 7.', $exception->getMessage());
+        self::assertStringContainsString("'composer' 'install'", $exception->getMessage());
+        self::assertStringContainsString('Error Output: install failed', $exception->getMessage());
+    }
+
     public function testEmptyAndInvalidScriptNamesAreIgnoredDuringActivation(): void
     {
         [$composer, $io] = $this->createComposer(
@@ -806,5 +934,16 @@ class DockerComposerPluginTest extends TestCase
         }
 
         self::fail('Expected Docker script execution to fail.');
+    }
+
+    private function assertCommandExecutionStops(DockerComposerPlugin $plugin, PreCommandRunEvent $event): ScriptExecutionException
+    {
+        try {
+            $plugin->onCommand($event);
+        } catch (ScriptExecutionException $exception) {
+            return $exception;
+        }
+
+        self::fail('Expected Docker command execution to stop host command.');
     }
 }

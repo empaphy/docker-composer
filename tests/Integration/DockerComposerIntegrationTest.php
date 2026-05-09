@@ -46,6 +46,21 @@ class DockerComposerIntegrationTest extends TestCase
         self::assertSame('1', trim((string) file_get_contents($projectDirectory . '/lifecycle.txt')));
     }
 
+    public function testInstallCommandRedirectsWhenPluginIsAlreadyInstalled(): void
+    {
+        $projectDirectory = $this->createProject([
+            'service' => 'php',
+            'mode' => 'exec',
+            'compose-files' => 'docker-compose.yaml',
+            'workdir' => '/usr/src/app',
+        ]);
+        $this->installProject($projectDirectory);
+
+        $result = $this->runCommand(['composer', 'install', '--no-interaction', '--no-progress', '--prefer-dist'], $projectDirectory);
+
+        self::assertStringContainsString('Running composer install in Docker Compose service php.', $result['stderr']);
+    }
+
     public function testServiceMappingOverrideRedirectsToConfiguredService(): void
     {
         $projectDirectory = $this->createProject([
@@ -236,8 +251,10 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
     /**
      * @param list<string>          $command
      * @param array<string, string> $environment
+     *
+     * @return array{stdout: string, stderr: string, exit-code: int}
      */
-    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): void
+    private function runCommand(array $command, string $workingDirectory, array $environment = [], bool $failOnError = true): array
     {
         $descriptorSpec = [
             1 => ['pipe', 'w'],
@@ -268,6 +285,12 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
                 $stderr,
             ));
         }
+
+        return [
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'exit-code' => $exitCode,
+        ];
     }
 
     private function removeDirectory(string $directory): void

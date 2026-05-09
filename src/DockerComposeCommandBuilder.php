@@ -16,6 +16,7 @@ namespace empaphy\docker_composer;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Util\ProcessExecutor;
 use InvalidArgumentException;
+use Symfony\Component\Console\Input\InputInterface;
 
 /**
  * Builds Docker Compose commands for redirected Composer scripts.
@@ -98,6 +99,50 @@ class DockerComposeCommandBuilder
     }
 
     /**
+     * Builds the Docker Compose Composer command execution command.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration that provides service options.
+     *
+     * @param  string  $commandName
+     *   The Composer command name to replay inside Docker Compose.
+     *
+     * @param  InputInterface  $input
+     *   The original console input whose raw arguments are replayed.
+     *
+     * @param  bool  $interactive
+     *   Whether the Docker command should keep TTY interaction enabled.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose exec` or `run`.
+     */
+    public function buildComposerCommand(DockerComposerConfig $config, string $commandName, InputInterface $input, bool $interactive): array
+    {
+        $command = $this->composeBase($config);
+        $command[] = $config->getMode();
+
+        if ($config->getMode() === DockerComposerConfig::MODE_RUN) {
+            $command[] = '--rm';
+        }
+
+        if (! $interactive) {
+            $command[] = '-T';
+        }
+
+        if ($config->getWorkdir() !== null) {
+            $command[] = '--workdir';
+            $command[] = $config->getWorkdir();
+        }
+
+        $command[] = '--env';
+        $command[] = 'DOCKER_COMPOSER_INSIDE=1';
+        $command[] = $config->getService();
+        $command[] = 'composer';
+
+        return array_merge($command, $this->getCommandArguments($input, $commandName));
+    }
+
+    /**
      * Builds the common Docker Compose command prefix.
      *
      * @param  DockerComposerConfig  $config
@@ -158,6 +203,94 @@ class DockerComposeCommandBuilder
         }
 
         return $command;
+    }
+
+    /**
+     * Gets raw Composer command arguments with host working directory removed.
+     *
+     * @param  InputInterface  $input
+     *   The input that may expose raw console tokens.
+     *
+     * @param  string  $commandName
+     *   The Composer command name to replace the first argument.
+     *
+     * @return list<string>
+     *   Returns Composer arguments including the command name.
+     */
+    private function getCommandArguments(InputInterface $input, string $commandName): array
+    {
+        if (! method_exists($input, 'getRawTokens')) {
+            throw new InvalidArgumentException('Composer command input must expose raw tokens.');
+        }
+
+        /** @var list<string> $tokens */
+        $tokens = $input->getRawTokens();
+        $firstArgument = $input->getFirstArgument();
+        $commandTokenReplaced = false;
+
+        foreach ($tokens as $index => $token) {
+            if (! $commandTokenReplaced && $token === $firstArgument) {
+                $tokens[$index] = $commandName;
+                $commandTokenReplaced = true;
+            }
+        }
+
+        if (! $commandTokenReplaced) {
+            $tokens[] = $commandName;
+        }
+
+        return $this->stripWorkingDirectoryTokens($tokens);
+    }
+
+    /**
+     * Removes host-only Composer working directory options from arguments.
+     *
+     * @param  list<string>  $tokens
+     *   The raw command arguments.
+     *
+     * @return list<string>
+     *   Returns __tokens__ without `--working-dir` or `-d`.
+     */
+    private function stripWorkingDirectoryTokens(array $tokens): array
+    {
+        $stripped = [];
+        $afterOptions = false;
+        $skipNext = false;
+
+        foreach ($tokens as $token) {
+            if ($skipNext) {
+                $skipNext = false;
+
+                continue;
+            }
+
+            if ($afterOptions) {
+                $stripped[] = $token;
+
+                continue;
+            }
+
+            if ($token === '--') {
+                $afterOptions = true;
+                $stripped[] = $token;
+
+                continue;
+            }
+
+            if ($token === '--working-dir' || $token === '-d') {
+                $skipNext = true;
+
+                continue;
+            }
+
+            if (str_starts_with($token, '--working-dir=') || preg_match('/^-d.+/', $token) === 1) {
+                continue;
+            }
+
+            $stripped[] = $token;
+        }
+
+        return $stripped;
     }
 
     /**
