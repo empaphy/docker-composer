@@ -93,7 +93,7 @@ class DockerComposerIntegrationTest extends TestCase
             ],
         ]);
         $result = $this->runCommand(
-            ['composer', 'require', '-m', 'empaphy/docker-composer:*@dev', '--no-interaction', '--no-progress'],
+            $this->getRequireCommand('empaphy/docker-composer:*@dev'),
             $projectDirectory,
         );
 
@@ -242,6 +242,28 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
         }
 
         return 'composer:' . $composerVersion;
+    }
+
+    /**
+     * Gets a Composer require command for the active integration Composer version.
+     *
+     * @param  string  $package
+     *   The package constraint to require.
+     *
+     * @return list<string>
+     *   Returns a Composer require command compatible with the active version.
+     */
+    private function getRequireCommand(string $package): array
+    {
+        $command = ['composer', 'require', $package, '--no-interaction', '--no-progress'];
+        $composerVersion = getenv('DOCKER_COMPOSER_TEST_COMPOSER_VERSION');
+        if ($composerVersion === false || str_starts_with($composerVersion, '1.')) {
+            return $command;
+        }
+
+        array_splice($command, 2, 0, '-m');
+
+        return $command;
     }
 
     private function installProject(string $projectDirectory): void
