@@ -666,6 +666,113 @@ class DockerComposerPluginTest extends TestCase
         self::assertSame([], $runner->commands);
     }
 
+    public function testUnredirectedCommandFallsThrough(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'validate']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'validate');
+
+        $plugin->activate($composer, $io);
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+    }
+
+    public function testCommandFallsThroughWithoutActivation(): void
+    {
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+    }
+
+    public function testContainerCommandFallsThrough(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(true));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+    }
+
+    #[BackupGlobals(true)]
+    public function testDisableEnvironmentVariableMakesCommandFallThrough(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        putenv('DOCKER_COMPOSER_DISABLE=1');
+        try {
+            $plugin->activate($composer, $io);
+            $plugin->onCommand($event);
+        } finally {
+            putenv('DOCKER_COMPOSER_DISABLE');
+        }
+
+        self::assertSame([], $runner->commands);
+    }
+
+    public function testMissingServiceCommandWarnsAndFallsThrough(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+        self::assertStringContainsString('no default service and no service-mapping override for "install"', $io->getOutput());
+    }
+
+    public function testCommandServiceMappingOverrideChangesTargetService(): void
+    {
+        [$composer, $io] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'service-mapping' => [
+                    'php-tools' => 'install',
+                ],
+            ],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $input = new ArgvInput(['composer', 'install']);
+        $input->setInteractive(false);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $plugin->activate($composer, $io);
+        $this->assertCommandExecutionStops($plugin, $event);
+
+        self::assertSame('php-tools', $runner->commands[0][4]);
+        self::assertSame('php-tools', $runner->commands[1][6]);
+        self::assertStringContainsString('Running composer install in Docker Compose service php-tools.', $io->getOutput());
+    }
+
     public function testCommandDockerFailurePreservesExitCode(): void
     {
         [$composer, $io] = $this->createComposer([], [
