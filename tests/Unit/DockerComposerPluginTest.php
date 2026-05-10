@@ -559,6 +559,7 @@ class DockerComposerPluginTest extends TestCase
         self::assertFalse($secondEvent->isPropagationStopped());
         self::assertSame([], $runner->commands);
         self::assertSame(1, substr_count($io->getOutput(), 'no default service and no service-mapping override for "test"'));
+        self::assertStringContainsString('running Composer script on the host', $io->getOutput());
     }
 
     public function testRedirectsInstallCommandBeforeHostExecution(): void
@@ -747,6 +748,8 @@ class DockerComposerPluginTest extends TestCase
 
         self::assertSame([], $runner->commands);
         self::assertStringContainsString('no default service and no service-mapping override for "install"', $io->getOutput());
+        self::assertStringContainsString('running Composer command on the host', $io->getOutput());
+        self::assertStringNotContainsString('running Composer script on the host', $io->getOutput());
     }
 
     public function testCommandServiceMappingOverrideChangesTargetService(): void

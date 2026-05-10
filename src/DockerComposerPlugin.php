@@ -281,7 +281,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         if (! $config->isConfiguredForScript($commandName)) {
-            $this->writeMissingConfigWarning($io, $commandName);
+            $this->writeMissingConfigWarning($io, $commandName, 'command');
 
             return;
         }
@@ -305,7 +305,12 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      */
     private function registerCommandListener(Composer $composer): void
     {
-        $composer->getEventDispatcher()->addListener(PluginEvents::PRE_COMMAND_RUN, [$this, 'onCommand'], PHP_INT_MAX);
+        if (class_exists(PreCommandRunEvent::class) && defined(PluginEvents::class . '::PRE_COMMAND_RUN')) {
+            $eventName = constant(PluginEvents::class . '::PRE_COMMAND_RUN');
+            assert(is_string($eventName));
+
+            $composer->getEventDispatcher()->addListener($eventName, [$this, 'onCommand'], PHP_INT_MAX);
+        }
     }
 
     /**
@@ -408,21 +413,25 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @param  IOInterface  $io
      *   The Composer IO that receives the warning.
      *
-     * @param  string  $scriptName
-     *   The Composer script name without a configured service.
+     * @param  string  $entryName
+     *   The Composer script or command name without a configured service.
+     *
+     * @param  string  $entryType
+     *   The Composer entry type being allowed to run on the host.
      *
      * @return void
      *   Returns nothing.
      */
-    private function writeMissingConfigWarning(IOInterface $io, string $scriptName): void
+    private function writeMissingConfigWarning(IOInterface $io, string $entryName, string $entryType = 'script'): void
     {
         if ($this->missingConfigWarningWritten) {
             return;
         }
 
         $io->writeError(sprintf(
-            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer script on the host.</warning>',
-            OutputFormatter::escape($scriptName),
+            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer %s on the host.</warning>',
+            OutputFormatter::escape($entryName),
+            $entryType,
         ));
         $this->missingConfigWarningWritten = true;
     }
