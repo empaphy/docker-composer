@@ -16,6 +16,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use Symfony\Component\Console\Input\ArrayInput;
 use Tests\TestCase;
+use Tests\Unit\Mocks\InvalidLegacyTokenInput;
+use Tests\Unit\Mocks\LegacyTokenInput;
 
 #[CoversClass(DockerComposeCommandBuilder::class)]
 #[UsesClass(DockerComposerConfig::class)]
@@ -240,107 +242,5 @@ class DockerComposeCommandBuilderTest extends TestCase
         $this->expectExceptionMessage('Composer command input must expose raw tokens.');
 
         (new DockerComposeCommandBuilder())->buildComposerCommand($config, 'install', $input, false);
-    }
-}
-
-/**
- * Provides Symfony Console 7.0-style raw token storage.
- */
-final class LegacyTokenInput extends ArrayInput
-{
-    /**
-     * Stores raw input tokens.
-     *
-     * @var list<string>
-     */
-    private array $tokens;
-
-    /**
-     * Stores the command-like first argument.
-     */
-    private ?string $firstArgument;
-
-    /**
-     * Creates a legacy token input.
-     *
-     * @param  list<string>  $tokens
-     *   The raw input tokens without the Composer executable.
-     *
-     * @param  string|null  $firstArgument
-     *   The command-like first argument to return.
-     */
-    public function __construct(array $tokens, ?string $firstArgument = null)
-    {
-        $this->tokens = $tokens;
-        $this->firstArgument = $firstArgument;
-
-        parent::__construct($tokens);
-    }
-
-    /**
-     * Returns the first command-like argument.
-     *
-     * @return string|null
-     *   Returns the first token that is not an option.
-     */
-    public function getFirstArgument(): ?string
-    {
-        if ($this->firstArgument !== null) {
-            return $this->firstArgument;
-        }
-
-        foreach ($this->tokens as $token) {
-            if ($token !== '' && $token[0] !== '-') {
-                return $token;
-            }
-        }
-
-        return null;
-    }
-}
-
-/**
- * Provides malformed Symfony Console 7.0-style raw token storage.
- */
-final class InvalidLegacyTokenInput extends ArrayInput
-{
-    /**
-     * Stores malformed raw input tokens.
-     */
-    private mixed $tokens;
-
-    /**
-     * Creates an invalid legacy token input.
-     *
-     * @param  mixed  $tokens
-     *   The malformed raw token payload.
-     */
-    public function __construct(mixed $tokens)
-    {
-        $this->tokens = $tokens;
-
-        parent::__construct(['install']);
-    }
-
-    /**
-     * Returns the malformed raw token payload.
-     *
-     * @return mixed
-     *   Returns the malformed raw token payload.
-     */
-    public function getTokensForAssertion(): mixed
-    {
-        return $this->tokens;
-    }
-
-    /**
-     * Returns the first command-like argument.
-     *
-     * @return string
-     *   Returns `install`.
-     */
-    public function getFirstArgument(): string
-    {
-        return 'install';
     }
 }
