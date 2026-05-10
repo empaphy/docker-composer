@@ -773,6 +773,48 @@ class DockerComposerPluginTest extends TestCase
         self::assertStringContainsString('Running composer install in Docker Compose service php-tools.', $io->getOutput());
     }
 
+    public function testCommandFallsThroughWhenIoExistsWithoutConfiguration(): void
+    {
+        [, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $runner = new MockProcessRunner();
+        $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+        $ioProperty = new \ReflectionProperty(DockerComposerPlugin::class, 'io');
+        $input = new ArgvInput(['composer', 'install']);
+        $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'install');
+
+        $ioProperty->setValue($plugin, $io);
+        $plugin->onCommand($event);
+
+        self::assertSame([], $runner->commands);
+    }
+
+    public function testCommandProcessRunnerRequiresActivationContext(): void
+    {
+        $plugin = new DockerComposerPlugin(null, new MockContainerDetector(false));
+        $method = new \ReflectionMethod(DockerComposerPlugin::class, 'getProcessRunnerForCommand');
+
+        $this->expectException(ScriptExecutionException::class);
+        $this->expectExceptionMessage('Docker Composer plugin was not activated.');
+
+        $method->invoke($plugin);
+    }
+
+    public function testCommandProcessRunnerCreatesDefaultRunnerFromStoredIo(): void
+    {
+        [, $io] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $plugin = new DockerComposerPlugin(null, new MockContainerDetector(false));
+        $ioProperty = new \ReflectionProperty(DockerComposerPlugin::class, 'io');
+        $method = new \ReflectionMethod(DockerComposerPlugin::class, 'getProcessRunnerForCommand');
+
+        $ioProperty->setValue($plugin, $io);
+
+        self::assertInstanceOf(ComposerProcessRunner::class, $method->invoke($plugin));
+    }
+
     public function testCommandDockerFailurePreservesExitCode(): void
     {
         [$composer, $io] = $this->createComposer([], [

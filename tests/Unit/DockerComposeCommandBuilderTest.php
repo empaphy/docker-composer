@@ -225,6 +225,22 @@ class DockerComposeCommandBuilderTest extends TestCase
 
         (new DockerComposeCommandBuilder())->buildComposerCommand($config, 'install', $input, false);
     }
+
+    public function testCommandBuilderRejectsMalformedLegacyInputTokensProperty(): void
+    {
+        [$composer] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $config = DockerComposerConfig::fromComposer($composer);
+        $input = new InvalidLegacyTokenInput(['command' => 'install']);
+
+        self::assertSame(['command' => 'install'], $input->getTokensForAssertion());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Composer command input must expose raw tokens.');
+
+        (new DockerComposeCommandBuilder())->buildComposerCommand($config, 'install', $input, false);
+    }
 }
 
 /**

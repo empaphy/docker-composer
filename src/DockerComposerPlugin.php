@@ -288,7 +288,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 
         $commandConfig = $config->forScript($commandName);
 
-        $this->writeCommandRedirectNotice($commandName, $commandConfig);
+        $this->writeCommandRedirectNotice($io, $commandName, $commandConfig);
         $this->runComposerCommandInDocker($event, $commandConfig);
 
         throw new ScriptExecutionException('', 0);
@@ -451,6 +451,9 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     /**
      * Writes the command redirection notice.
      *
+     * @param  IOInterface  $io
+     *   The Composer IO that receives the notice.
+     *
      * @param  string  $commandName
      *   The Composer command being redirected.
      *
@@ -460,13 +463,9 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @return void
      *   Returns nothing.
      */
-    private function writeCommandRedirectNotice(string $commandName, DockerComposerConfig $config): void
+    private function writeCommandRedirectNotice(IOInterface $io, string $commandName, DockerComposerConfig $config): void
     {
-        if ($this->io === null) {
-            return;
-        }
-
-        $this->io->writeError(sprintf(
+        $io->writeError(sprintf(
             '<info>docker-composer:</info> Running composer <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
             OutputFormatter::escape($commandName),
             OutputFormatter::escape($config->getService()),
