@@ -21,6 +21,7 @@ runs:
         php-version: ${{ inputs.php-version }}
         tools: composer:${{ inputs.composer-version }}
         coverage: xdebug
+        ini-values: zend.assertions=1
 
     - name: Validate Composer Config
       shell: bash
