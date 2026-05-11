@@ -18,6 +18,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Tests\TestCase;
 use Tests\Unit\Mocks\InvalidLegacyTokenInput;
 use Tests\Unit\Mocks\LegacyTokenInput;
+use Tests\Unit\Mocks\RawTokenInput;
 
 #[CoversClass(DockerComposeCommandBuilder::class)]
 #[UsesClass(DockerComposerConfig::class)]
@@ -78,6 +79,29 @@ class DockerComposeCommandBuilderTest extends TestCase
             '--working-dir=app',
             '--prefer-dist',
         ]);
+
+        $command = (new DockerComposeCommandBuilder())->buildComposerCommand($config, 'install', $input, false);
+
+        self::assertSame([
+            'composer',
+            '--no-interaction',
+            'install',
+            '--prefer-dist',
+        ], array_slice($command, -4));
+    }
+
+    public function testCommandBuilderUsesRawTokensMethod(): void
+    {
+        [$composer] = $this->createComposer([], [
+            'docker-composer' => ['service' => 'php'],
+        ]);
+        $config = DockerComposerConfig::fromComposer($composer);
+        $input = new RawTokenInput([
+            '--no-interaction',
+            'i',
+            '--working-dir=/host/app',
+            '--prefer-dist',
+        ], 'i');
 
         $command = (new DockerComposeCommandBuilder())->buildComposerCommand($config, 'install', $input, false);
 
