@@ -51,10 +51,18 @@
     "scripts": {
         "style-check": "XDEBUG_MODE=off php-cs-fixer check",
         "style-fix": "XDEBUG_MODE=off php-cs-fixer fix",
-        "stan": "XDEBUG_MODE=off phpstan --memory-limit=1G",
+        "stan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
         "test": "XDEBUG_MODE=coverage phpunit --coverage-text",
         "test-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
         "test-unit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
+    },
+    "scripts-descriptions": {
+        "style-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
+        "style-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
+        "stan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
+        "test": "Run all test suites using `phpunit --coverage-text [options] [<directory|file> ...]`",
+        "test-integration": "Run Integration test suite using `phpunit --testsuite Integration [options] [<directory|file> ...]`",
+        "test-unit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
     },
     "extra": {
         "class": "empaphy\\docker_composer\\DockerComposerPlugin",
