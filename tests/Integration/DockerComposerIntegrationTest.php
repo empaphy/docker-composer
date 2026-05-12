@@ -1,6 +1,8 @@
 <?php
 
 /**
+ * @noinspection PhpDocMissingThrowsInspection
+ * @noinspection PhpUnhandledExceptionInspection
  * @noinspection StaticClosureCanBeUsedInspection
  */
 
@@ -14,7 +16,9 @@ use Tests\TestCase;
 #[CoversNothing]
 class DockerComposerIntegrationTest extends TestCase
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     private array $projectDirectories = [];
 
     protected function tearDown(): void
@@ -121,8 +125,8 @@ class DockerComposerIntegrationTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $dockerComposerConfig
-     * @param list<array<string, mixed>>|null $repositories
+     * @param  array<string, mixed>             $dockerComposerConfig
+     * @param  list<array<string, mixed>>|null  $repositories
      */
     private function createProject(array $dockerComposerConfig, ?array $repositories = null, string $requireVersion = '*'): string
     {
@@ -222,13 +226,7 @@ YAML, $this->getComposerImage(), $this->getComposerImage()));
     }
 
     /**
-     * Gets a Composer require command for the active integration Composer version.
-     *
-     * @param  string  $package
-     *   The package constraint to require.
-     *
      * @return list<string>
-     *   Returns a Composer require command compatible with the active version.
      */
     protected function getRequireCommand(string $package): array
     {

@@ -10,7 +10,9 @@ use function array_shift;
 
 final class MockOutputCapturingProcessRunner extends MockProcessRunner implements OutputCapturingProcessRunner
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     private array $outputs;
 
     /**

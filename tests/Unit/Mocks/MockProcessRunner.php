@@ -10,13 +10,19 @@ use function array_shift;
 
 class MockProcessRunner implements ProcessRunner
 {
-    /** @var list<list<string>> */
+    /**
+     * @var list<list<string>>
+     */
     public array $commands = [];
 
-    /** @var list<bool> */
+    /**
+     * @var list<bool>
+     */
     public array $tty = [];
 
-    /** @var list<int> */
+    /**
+     * @var list<int>
+     */
     private array $exitCodes;
 
     /**
@@ -24,12 +30,15 @@ class MockProcessRunner implements ProcessRunner
      */
     public function __construct(
         array $exitCodes = [0],
-        private string $errorOutput = '',
-        private bool $supportsTty = false,
+        private readonly string $errorOutput = '',
+        private readonly bool $supportsTty = false,
     ) {
         $this->exitCodes = $exitCodes;
     }
 
+    /**
+     * @param  list<string>  $command
+     */
     public function run(array $command, bool $tty = false): int
     {
         $this->commands[] = $command;
