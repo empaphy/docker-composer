@@ -92,7 +92,11 @@ Set `DOCKER_COMPOSER_DISABLE=1` to bypass Docker redirection temporarily.
 This plugin redirects Composer scripts, including lifecycle scripts such as
 `post-install-cmd` and custom scripts run through `composer run-script`.
 
-It does not transparently replace whole Composer commands such as
-`composer install` with `docker compose exec php composer install`. Composer's
-plugin command events do not provide a clean way to run a child command, skip the
-host command, and return the child exit code without relying on fragile internals.
+It also redirects dependency commands before host execution so platform
+requirements are resolved from inside the configured service:
+
+- `composer install`
+- `composer update`
+- `composer require`
+- `composer remove`
+- `composer reinstall`

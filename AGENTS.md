@@ -1,9 +1,9 @@
 ## General Instructions
+In all interactions and comments be extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 In commit messages use conventional commits and provide justification of the changes in the body.
-In all interactions and plans be extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 
 ## Plan Mode
-Make plans extremely concise — sacrifice grammar for the sake of concision. Conciseness alone does not justify omitting information or intent.
+Make plans extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 At the end of each plan, give me a list of unresolved questions to answer, if any.
 
 ## Tests
@@ -13,25 +13,17 @@ At the end of every task, execute these commands to ensure the quality of the co
 - `composer stan`
 - `composer test`
 
-## PHPStan
-Prefer clear, performant code over reshaping code only to satisfy PHPStan.
-Treat PHPStan findings as likely real; fix root causes first.
-If PHPStan cannot model valid runtime behavior, use the narrowest fix:
- 1. add explicit control flow or `assert()` when it improves clarity;
- 2. otherwise add a targeted `@phpstan-ignore <identifier>` on the exact line.
-Do not add broad suppressions, baselines, or unclear type workarounds.
-
 ## Coding Style
-All PHP code must adhere to PER Coding Syle 3.0, which also includes PSR-1: Basic Coding Standard.
+All PHP code must adhere to PER Coding Style, which includes PSR-1: Basic Coding Standard.
 Files should _either_ declare symbols _or_ cause side-effects but not both.
 
 ## PHPDoc
-Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. Include descriptive `@param` and `@return` tags for all argument and return types, and `@var` tags for all parameters.
+Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. For functions and methods include the return type, and the `@param` and `@return` tags for every argument.
 
 When writing PHPDocs, observe this format:
 
 ```php
-class 
+class Foo
 {
     /**
      * Constants don't need a `@var` doctag, since their type is implied.
@@ -53,32 +45,39 @@ class
     private Baz baz():
 
     /**
-     * The first line should be a short description with no Markdown.
+     * The first line should be a short description, no Markdown allowed here.
      * 
-     * Here you can add as many lines and all the Markdown you want.
+     * Here, provide a high-level explanation of what the function does and what
+     * the use cases are. Aim for a line length of 80 characters or fewer.
+     *
+     * You can use as many lines and all the Markdown you want.
      * - reference arguments by making the text __bold__
-     * - reference scalar types and literals with backticks, so `string` and `"foo"`
+     * - reference scalar types and literals with backticks, so `string` and
+     *   `"foo"`
      * - reference non-scalar types as {@see Foo}
      * - import referenced classes, do not use FQN
      * 
-     *     // 4 spaces indent Code blocks.
-     *     foo(1, 2, 'three');
+     * If appropriate, e.g. if not completely clear from the description 
+     * signature alone, provide some examples:
      *
-     * Keep a blank line before the first doctag:
+     *     // 4 spaces indent Code blocks.
+     *     foo($foo, $bar, 'foo'); // returns $foo
+     *     foo($foo, $bar, 'baz'); // returns $bar
+     *
+     * Keep a blank line before the first doc tag:
      *
      * @template TFoo of Foo
      * @template TBar of Bar
      *
      * @param  TFoo  $one
-     *   Place the description of a doctag on the next line, indented by 2
+     *   Place the description of a doc tag on the next line, indented by 2
      *   spaces.
      *
      * @param  TBar  $two
-     *   Doctags with a description should be surrounded by a blank line.
+     *   Doc tags with a description should be surrounded by a blank line.
      * 
      * @param  string  $three
-     *   `@param` doctags should have their type and argument name surrounded
-     *   by 2 spaces
+     *   Only `@param` doc tags have their type and name surrounded by 2 spaces.
      *
      * @return ($three is "foo" ? TFoo : TBar)
      *   Returns __one__ if __three__ is `"foo"`, __two__ otherwise.

@@ -20,6 +20,8 @@ use Composer\EventDispatcher\Event;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\EventDispatcher\ScriptExecutionException;
 use Composer\IO\IOInterface;
+use Composer\Plugin\PreCommandRunEvent;
+use Composer\Plugin\PluginEvents;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Util\ProcessExecutor;
@@ -30,6 +32,19 @@ use Symfony\Component\Console\Formatter\OutputFormatter;
  */
 class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 {
+    /**
+     * Lists Composer commands redirected before host execution.
+     *
+     * @var list<string>
+     */
+    private const REDIRECTED_COMMANDS = [
+        'install',
+        'update',
+        'require',
+        'remove',
+        'reinstall',
+    ];
+
     /**
      * Stores Composer IO for plugin messages.
      */
@@ -121,6 +136,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
 
         $this->writeUnknownConfigWarning();
         $this->writeDuplicateServiceMappingWarnings($io);
+        $this->registerCommandListener($composer);
         $this->registerScriptListeners($composer);
     }
 
@@ -230,6 +246,74 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
+     * Redirects selected Composer commands into Docker Compose.
+     *
+     * @param  PreCommandRunEvent  $event
+     *   The Composer command event to inspect and possibly redirect.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown after Docker execution to stop host Composer command handling.
+     */
+    public function onCommand(PreCommandRunEvent $event): void
+    {
+        $commandName = $event->getCommand();
+        if (! in_array($commandName, self::REDIRECTED_COMMANDS, true)) {
+            return;
+        }
+
+        $io = $this->io;
+        if ($io === null || $this->isDisabledByEnvironment() || $this->containerDetector->isInsideContainer()) {
+            return;
+        }
+
+        $config = $this->config;
+        if ($config === null) {
+            return;
+        }
+
+        $this->writeDuplicateServiceMappingWarnings($io);
+
+        if ($config->isExcluded($commandName)) {
+            return;
+        }
+
+        if (! $config->isConfiguredForScript($commandName)) {
+            $this->writeMissingConfigWarning($io, $commandName, 'command');
+
+            return;
+        }
+
+        $commandConfig = $config->forScript($commandName);
+
+        $this->writeCommandRedirectNotice($io, $commandName, $commandConfig);
+        $this->runComposerCommandInDocker($event, $commandConfig);
+
+        throw new ScriptExecutionException('', 0);
+    }
+
+    /**
+     * Registers the listener for dependency Composer commands.
+     *
+     * @param  Composer  $composer
+     *   The Composer instance whose commands should be watched.
+     *
+     * @return void
+     *   Returns nothing.
+     */
+    private function registerCommandListener(Composer $composer): void
+    {
+        if (class_exists(PreCommandRunEvent::class) && defined(PluginEvents::class . '::PRE_COMMAND_RUN')) {
+            $eventName = constant(PluginEvents::class . '::PRE_COMMAND_RUN');
+            assert(is_string($eventName));
+
+            $composer->getEventDispatcher()->addListener($eventName, [$this, 'onCommand'], PHP_INT_MAX);
+        }
+    }
+
+    /**
      * Registers listeners for configured Composer scripts.
      *
      * @param  Composer  $composer
@@ -329,21 +413,25 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @param  IOInterface  $io
      *   The Composer IO that receives the warning.
      *
-     * @param  string  $scriptName
-     *   The Composer script name without a configured service.
+     * @param  string  $entryName
+     *   The Composer script or command name without a configured service.
+     *
+     * @param  string  $entryType
+     *   The Composer entry type being allowed to run on the host.
      *
      * @return void
      *   Returns nothing.
      */
-    private function writeMissingConfigWarning(IOInterface $io, string $scriptName): void
+    private function writeMissingConfigWarning(IOInterface $io, string $entryName, string $entryType = 'script'): void
     {
         if ($this->missingConfigWarningWritten) {
             return;
         }
 
         $io->writeError(sprintf(
-            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer script on the host.</warning>',
-            OutputFormatter::escape($scriptName),
+            '<warning>docker-composer: no default service and no service-mapping override for "%s"; running Composer %s on the host.</warning>',
+            OutputFormatter::escape($entryName),
+            $entryType,
         ));
         $this->missingConfigWarningWritten = true;
     }
@@ -365,6 +453,30 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $event->getIO()->writeError(sprintf(
             '<info>docker-composer:</info> Running <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
             OutputFormatter::escape($event->getName()),
+            OutputFormatter::escape($config->getService()),
+        ));
+    }
+
+    /**
+     * Writes the command redirection notice.
+     *
+     * @param  IOInterface  $io
+     *   The Composer IO that receives the notice.
+     *
+     * @param  string  $commandName
+     *   The Composer command being redirected.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The configuration that provides the target service.
+     *
+     * @return void
+     *   Returns nothing.
+     */
+    private function writeCommandRedirectNotice(IOInterface $io, string $commandName, DockerComposerConfig $config): void
+    {
+        $io->writeError(sprintf(
+            '<info>docker-composer:</info> Running composer <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
+            OutputFormatter::escape($commandName),
             OutputFormatter::escape($config->getService()),
         ));
     }
@@ -405,6 +517,46 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         $exitCode = $runner->run($scriptCommand, $isInteractive);
         if ($exitCode !== 0) {
             $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $scriptCommand);
+        }
+    }
+
+    /**
+     * Runs a Composer command inside Docker Compose.
+     *
+     * @param  PreCommandRunEvent  $event
+     *   The Composer command event being executed.
+     *
+     * @param  DockerComposerConfig  $config
+     *   The Docker Composer configuration used to build commands.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown when Docker Compose startup or command execution fails.
+     */
+    private function runComposerCommandInDocker(PreCommandRunEvent $event, DockerComposerConfig $config): void
+    {
+        $runner = $this->getProcessRunnerForCommand();
+
+        if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
+            $startupKey = $this->getExecServiceStartupKey($config);
+            if (! isset($this->startedExecServices[$startupKey])) {
+                $this->ensureExecServiceStarted($runner, $config);
+                $this->startedExecServices[$startupKey] = true;
+            }
+        }
+
+        $isInteractive = $event->getInput()->isInteractive() && $runner->supportsTty();
+        $command = $this->commandBuilder->buildComposerCommand(
+            $config,
+            $event->getCommand(),
+            $event->getInput(),
+            $isInteractive,
+        );
+        $exitCode = $runner->run($command, $isInteractive);
+        if ($exitCode !== 0) {
+            $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $command);
         }
     }
 
@@ -484,6 +636,25 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         if ($this->processRunner === null) {
             $this->processRunner = new ComposerProcessRunner($event->getIO());
+        }
+
+        return $this->processRunner;
+    }
+
+    /**
+     * Gets the process runner for Docker commands.
+     *
+     * @return ProcessRunner
+     *   Returns the configured or lazily created process runner.
+     */
+    private function getProcessRunnerForCommand(): ProcessRunner
+    {
+        if ($this->processRunner === null) {
+            if ($this->io === null) {
+                throw new ScriptExecutionException('Docker Composer plugin was not activated.', 1);
+            }
+
+            $this->processRunner = new ComposerProcessRunner($this->io);
         }
 
         return $this->processRunner;
