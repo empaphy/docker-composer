@@ -5,8 +5,8 @@ Composer plugin that ensures scripts are always executed within a Docker Compose
 ## Installation
 
 ```bash
-composer require --dev empaphy/docker-composer
 composer config allow-plugins.empaphy/docker-composer true
+composer require --dev empaphy/docker-composer
 ```
 
 Composer 2.2 and newer require plugins to be allowed explicitly. Composer 1 ignores
