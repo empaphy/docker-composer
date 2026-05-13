@@ -1,17 +1,23 @@
 ## General Instructions
-In all interactions and comments be extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 In commit messages use conventional commits and provide justification of the changes in the body.
 
 ## Plan Mode
-Make plans extremely concise — sacrifice grammar for the sake of conciseness. Conciseness alone does not justify omitting information or intent.
 At the end of each plan, give me a list of unresolved questions to answer, if any.
+When asking the user to choose an approach, consider whether implementing multiple approaches that can be chained as fallbacks is the recommended options.
 
 ## Tests
 When writing unit tests, create a TestCase class for each class being tested.
 At the end of every task, execute these commands to ensure the quality of the code:
 - `composer style-fix`
-- `composer stan`
-- `composer test`
+- `composer check`
+
+### Coverage
+All unit tests are required to have both a branch and line coverage of 100%.
+
+## Architecture
+DRY: Don't Repeat Yourself — before adding new code, inspect existing abstractions and extend/reuse them.
+Framework integrations belong in framework-named subdirectories under `src/`.
+Do not duplicate code when a shared abstraction can cover the behavior.
 
 ## Coding Style
 All PHP code must adhere to PER Coding Style, which includes PSR-1: Basic Coding Standard.
@@ -42,7 +48,15 @@ class Foo
     /**
      * The `@var` doctag is omitted if the type is unambiguous.
      */
-    private Baz baz():
+    private Baz $baz;
+    
+    /**
+     * The `@return` doctag is omitted if the return type is `void`. 
+     */
+    public function doSomething(): void
+    {
+        // Imagine this method does something.
+    }
 
     /**
      * The first line should be a short description, no Markdown allowed here.

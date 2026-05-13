@@ -15,6 +15,11 @@ use Composer\Plugin\PreCommandRunEvent;
 use Composer\Script\Event as ScriptEvent;
 use empaphy\docker_composer\ComposerProcessRunner;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
+use empaphy\docker_composer\DockerComposeExecutionResult;
+use empaphy\docker_composer\DockerComposeResolvedOptions;
+use empaphy\docker_composer\DockerComposeRunner;
+use empaphy\docker_composer\DockerComposeWorkdirResolution;
+use empaphy\docker_composer\DockerComposeWorkdirResolver;
 use empaphy\docker_composer\DockerComposerConfig;
 use empaphy\docker_composer\DockerComposerPlugin;
 use InvalidArgumentException;
@@ -31,6 +36,11 @@ use Symfony\Component\Console\Input\ArgvInput;
 #[CoversClass(ComposerProcessRunner::class)]
 #[CoversClass(DockerComposerConfig::class)]
 #[CoversClass(DockerComposeCommandBuilder::class)]
+#[CoversClass(DockerComposeRunner::class)]
+#[CoversClass(DockerComposeExecutionResult::class)]
+#[CoversClass(DockerComposeWorkdirResolver::class)]
+#[CoversClass(DockerComposeWorkdirResolution::class)]
+#[CoversClass(DockerComposeResolvedOptions::class)]
 class DockerComposerPluginTest extends TestCase
 {
     public function testPluginLifecycleMethodsAreSafe(): void
@@ -332,13 +342,24 @@ class DockerComposerPluginTest extends TestCase
                 ],
             ],
         );
-        $runner = new MockOutputCapturingProcessRunner([0, 0], outputs: ['php' . PHP_EOL]);
+        $runner = new MockOutputCapturingProcessRunner([0, 0, 0], outputs: [$this->composeConfigWithWorkingDir(), 'php' . PHP_EOL]);
         $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
 
         self::assertSame([
+            [
+                'docker',
+                'compose',
+                '--file',
+                'docker-compose.yaml',
+                '--project-directory',
+                '.',
+                'config',
+                '--format',
+                'json',
+            ],
             [
                 'docker',
                 'compose',
@@ -361,6 +382,8 @@ class DockerComposerPluginTest extends TestCase
                 '.',
                 'exec',
                 '-T',
+                '--workdir',
+                '/usr/src/app',
                 '--env',
                 'DOCKER_COMPOSER_INSIDE=1',
                 'php',
@@ -380,16 +403,17 @@ class DockerComposerPluginTest extends TestCase
             ['test' => ['host-command']],
             ['docker-composer' => ['service' => 'php']],
         );
-        $runner = new MockOutputCapturingProcessRunner([0, 0, 0], outputs: ['']);
+        $runner = new MockOutputCapturingProcessRunner([0, 0, 0, 0], outputs: [$this->composeConfigWithWorkingDir(), '']);
         $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
 
-        self::assertSame(['ps', 'up', 'exec'], [
+        self::assertSame(['config', 'ps', 'up', 'exec'], [
             $runner->commands[0][2],
             $runner->commands[1][2],
             $runner->commands[2][2],
+            $runner->commands[3][2],
         ]);
     }
 
@@ -399,16 +423,17 @@ class DockerComposerPluginTest extends TestCase
             ['test' => ['host-command']],
             ['docker-composer' => ['service' => 'php']],
         );
-        $runner = new MockOutputCapturingProcessRunner([7, 0, 0], outputs: ['']);
+        $runner = new MockOutputCapturingProcessRunner([0, 7, 0, 0], outputs: [$this->composeConfigWithWorkingDir(), '']);
         $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
 
         $plugin->activate($composer, $io);
         $plugin->onScript(new ScriptEvent('test', $composer, $io));
 
-        self::assertSame(['ps', 'up', 'exec'], [
+        self::assertSame(['config', 'ps', 'up', 'exec'], [
             $runner->commands[0][2],
             $runner->commands[1][2],
             $runner->commands[2][2],
+            $runner->commands[3][2],
         ]);
     }
 
@@ -1076,6 +1101,17 @@ class DockerComposerPluginTest extends TestCase
 
         self::assertFalse($event->isPropagationStopped());
         self::assertSame([], $runner->commands);
+    }
+
+    private function composeConfigWithWorkingDir(): string
+    {
+        return json_encode([
+            'services' => [
+                'php' => [
+                    'working_dir' => '/usr/src/app',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
     }
 
     private function assertScriptExecutionFails(DockerComposerPlugin $plugin, ScriptEvent $event): ScriptExecutionException

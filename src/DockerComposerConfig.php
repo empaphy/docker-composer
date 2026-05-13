@@ -20,7 +20,7 @@ use LogicException;
 /**
  * Parses and exposes Docker Composer configuration from Composer metadata.
  */
-final class DockerComposerConfig
+final class DockerComposerConfig implements DockerComposeOptions
 {
     /**
      * Names the Composer extra key used by this plugin.
@@ -36,7 +36,7 @@ final class DockerComposerConfig
      * @var string
      *   Stores the mode that executes scripts in an existing service container.
      */
-    public const MODE_EXEC = 'exec';
+    public const MODE_EXEC = DockerComposeOptions::MODE_EXEC;
 
     /**
      * Selects Docker Compose run mode.
@@ -44,7 +44,7 @@ final class DockerComposerConfig
      * @var string
      *   Stores the mode that creates a one-off service container for scripts.
      */
-    public const MODE_RUN = 'run';
+    public const MODE_RUN = DockerComposeOptions::MODE_RUN;
 
     /**
      * Lists supported configuration keys.

@@ -6,21 +6,26 @@ namespace Tests\Unit\Mocks;
 
 use Composer\Script\Event as ScriptEvent;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
-use empaphy\docker_composer\DockerComposerConfig;
+use empaphy\docker_composer\DockerComposeOptions;
 
 final class MockCommandBuilder extends DockerComposeCommandBuilder
 {
-    public function buildRunningServicesCommand(DockerComposerConfig $config): array
+    public function buildRunningServicesCommand(DockerComposeOptions $config): array
     {
         return ['php', '-r', 'exit(1);'];
     }
 
-    public function buildUpCommand(DockerComposerConfig $config): array
+    public function buildUpCommand(DockerComposeOptions $config): array
     {
         return ['php', '-r', 'exit(0);'];
     }
 
-    public function buildScriptCommand(DockerComposerConfig $config, ScriptEvent $event, bool $interactive): array
+    public function buildConfigCommand(DockerComposeOptions $config): array
+    {
+        return ['php', '-r', 'echo \'{"services":{"php":{"working_dir":"/usr/src/app"}}}\';'];
+    }
+
+    public function buildScriptCommand(DockerComposeOptions $config, ScriptEvent $event, bool $interactive): array
     {
         return ['php', '-r', 'exit(0);'];
     }

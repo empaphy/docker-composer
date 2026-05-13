@@ -25,6 +25,7 @@
     "require-dev": {
         "composer/composer": ">=1.1",
         "empaphy/filharmonic": "^1",
+        "illuminate/support": ">=10",
         "friendsofphp/php-cs-fixer": "^3",
         "phpstan/phpstan": "^2",
         "phpstan/phpstan-phpunit": "^2",
@@ -49,6 +50,7 @@
         }
     },
     "scripts": {
+        "check": ["@style-check", "@stan", "@test"],
         "style-check": "XDEBUG_MODE=off php-cs-fixer check",
         "style-fix": "XDEBUG_MODE=off php-cs-fixer fix",
         "stan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
@@ -66,6 +68,11 @@
     },
     "extra": {
         "class": "empaphy\\docker_composer\\DockerComposerPlugin",
+        "laravel": {
+            "providers": [
+                "empaphy\\docker_composer\\Laravel\\ServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "1.x-dev"
         }
