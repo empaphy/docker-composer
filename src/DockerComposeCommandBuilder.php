@@ -27,7 +27,7 @@ class DockerComposeCommandBuilder
      * Builds the Docker Compose service startup command.
      *
      * @param  DockerComposeOptions  $config
-     *   The Docker Composer configuration that provides service options.
+     *   The Docker-Composer configuration that provides service options.
      *
      * @return list<string>
      *   Returns command arguments for `docker compose up -d`.
@@ -45,7 +45,7 @@ class DockerComposeCommandBuilder
      * Builds the Docker Compose running services command.
      *
      * @param  DockerComposeOptions  $config
-     *   The Docker Composer configuration that provides service options.
+     *   The Docker-Composer configuration that provides service options.
      *
      * @return list<string>
      *   Returns command arguments for `docker compose ps`.
@@ -62,7 +62,7 @@ class DockerComposeCommandBuilder
      * Builds the Docker Compose script execution command.
      *
      * @param  DockerComposeOptions  $config
-     *   The Docker Composer configuration that provides service options.
+     *   The Docker-Composer configuration that provides service options.
      *
      * @param  ScriptEvent  $event
      *   The Composer script event to replay inside Docker Compose.
@@ -97,7 +97,7 @@ class DockerComposeCommandBuilder
      * Builds the Docker Compose Composer command execution command.
      *
      * @param  DockerComposeOptions  $config
-     *   The Docker Composer configuration that provides service options.
+     *   The Docker-Composer configuration that provides service options.
      *
      * @param  string  $commandName
      *   The Composer command name to replay inside Docker Compose.

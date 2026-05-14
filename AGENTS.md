@@ -1,43 +1,46 @@
 ## Project Structure
-- `config/`: Configuration files for Laravel support.
-- `features/`: Behat feature test suite, written in Gerkin.
-  - `features/bootstrap/`: Behat Context classes.
-- `src/`: Source files organized by domain. Follows PSR-4.
-  - `src/Laravel/`: Source code related to Laravel support.
-- `tests/`: Test suites, test-specific traits and seeders.
-  - `tests/Unit/`: Unit test suite for PHPUnit.
-  - `tests/Integration/`: Integration test suite for PHPUnit.
-- `vendor/`: Vendor packages, installed with Composer.
 
-## General Instructions
+```
+docker-composer/
+├─╴.github/      — GitHub Actions workflows.
+├─╴config/       — Configuration files for Laravel support.
+├─╴features/     — Behat feature test suite, written in Gerkin.
+│  └─╴bootstrap/ — Behat Context classes.
+├─╴src/          — Source files organized by domain. Follows PSR-4.
+│  └─╴Laravel/   — Source code related to Laravel support.
+├─╴tests/        — Unit tests.
+└─╴vendor/       — Vendor packages, installed by Composer.
+```
+
+## Instructions
 In commit messages use conventional commits and provide justification of the changes in the body.
 
-## Plan Mode
+### Plan Mode
 At the end of each plan, give me a list of unresolved questions to answer, if any.
 When asking the user to choose an approach, consider whether chaining multiple approaches is also a valid or even the recommended option.
 
-## Tests
+### Tests
 When writing unit tests, create a TestCase class for each class being tested.
 At the end of every task, execute these commands to ensure the quality of the code:
 - `composer cs-fix`
 - `composer check`
 
-### Feature Tests
+#### Feature Tests
 When adding new behavior, write a Behat feature spec that covers it. When changing behavior, update the corresponding Behat feature spec.
 
-### Coverage
+#### Coverage
 All unit tests are required to have both a branch and line coverage of 100%.
 
-## Architecture
+### Architecture
 DRY: Don't Repeat Yourself — before adding new code, inspect existing abstractions and extend/reuse them.
 Framework integrations belong in framework-named subdirectories under `src/`.
 Do not duplicate code when a shared abstraction can cover the behavior.
 
-## Coding Style
+### Coding Style
 All PHP code must adhere to PER Coding Style, which includes PSR-1: Basic Coding Standard.
 Files should _either_ declare symbols _or_ cause side-effects but not both.
 
-## PHPDoc
+### PHPDoc
 Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. For functions and methods include the return type, and the `@param` and `@return` tags for every argument.
 
 When writing PHPDocs, observe this format:
@@ -117,5 +120,5 @@ class Foo
 }
 ```
 
-## Tools
+### Tools
 If a tool, command or integration fails that one would expect to be working, do not try a different approach. Instead, investigate the problem and suggest a fix to the user.

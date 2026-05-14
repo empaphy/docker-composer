@@ -24,7 +24,6 @@ use Composer\Plugin\PreCommandRunEvent;
 use Composer\Plugin\PluginEvents;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
-use Composer\Util\Platform;
 use Composer\Util\ProcessExecutor;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
@@ -52,7 +51,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private ?IOInterface $io = null;
 
     /**
-     * Stores parsed Docker Composer configuration.
+     * Stores parsed Docker-Composer configuration.
      */
     private ?DockerComposerConfig $config = null;
 
@@ -358,7 +357,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The script event used to lazily access Composer.
      *
      * @return DockerComposerConfig
-     *   Returns parsed Docker Composer configuration.
+     *   Returns parsed Docker-Composer configuration.
      */
     private function getConfig(ScriptEvent $event): DockerComposerConfig
     {
@@ -495,7 +494,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The Composer script event being executed.
      *
      * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration used to build commands.
+     *   The Docker-Composer configuration used to build commands.
      *
      * @return void
      *   Returns nothing.
@@ -527,7 +526,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The Composer command event being executed.
      *
      * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration used to build commands.
+     *   The Docker-Composer configuration used to build commands.
      *
      * @return void
      *   Returns nothing.
@@ -581,7 +580,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         if ($this->processRunner === null) {
             if ($this->io === null) {
-                throw new ScriptExecutionException('Docker Composer plugin was not activated.', 1);
+                throw new ScriptExecutionException('Docker-Composer plugin was not activated.', 1);
             }
 
             $this->processRunner = new ComposerProcessRunner($this->io);
@@ -594,7 +593,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * Resolves Docker Compose workdir metadata for execution.
      *
      * @param  DockerComposerConfig  $config
-     *   The parsed Docker Composer configuration.
+     *   The parsed Docker-Composer configuration.
      *
      * @param  string  $hostWorkingDirectory
      *   The active host working directory.
@@ -614,15 +613,10 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * Gets the active host working directory.
      *
      * @return string
-     *   Returns Composer's current directory, falling back to process CWD.
+     *   Returns the process CWD, falling back to `"."`.
      */
     private function getHostWorkingDirectory(): string
     {
-        $cwd = Platform::getCwd(true);
-        if ($cwd !== '') {
-            return $cwd;
-        }
-
         $cwd = getcwd();
 
         return $cwd !== false ? $cwd : '.';

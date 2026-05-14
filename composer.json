@@ -20,11 +20,11 @@
     },
     "require": {
         "php": ">=8.1",
-        "composer-plugin-api": ">=1.1"
+        "composer-plugin-api": ">=2"
     },
     "require-dev": {
         "behat/behat": "^3",
-        "composer/composer": ">=1.1",
+        "composer/composer": ">=2",
         "empaphy/filharmonic": "^1",
         "illuminate/console": ">=10",
         "illuminate/support": ">=10",
@@ -57,16 +57,15 @@
         }
     },
     "scripts": {
-        "behat": "XDEBUG_MODE=off behat",
-        "check": ["@cs-check", "@stan", "@test"],
+        "behat": [
+            "XDEBUG_MODE=off behat",
+            "XDEBUG_MODE=off behat --profile lowest"
+        ],
+        "check": ["@cs-check", "@phpstan", "@test"],
         "cs-check": "XDEBUG_MODE=off php-cs-fixer check",
         "cs-fix": "XDEBUG_MODE=off php-cs-fixer fix",
         "phpstan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
-        "test": [
-            "XDEBUG_MODE=coverage phpunit --coverage-text",
-            "@feat"
-        ],
-        "phpunit-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
+        "test": ["@phpunit", "@behat"],
         "phpunit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
     },
     "scripts-descriptions": {
@@ -74,9 +73,8 @@
         "check": "Perform all automated checks.",
         "cs-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
         "cs-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
-        "phptan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
+        "phpstan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
         "test": "Run all test suites.",
-        "phpunit-integration": "Run Integration test suite using `phpunit --testsuite Integration [options] [<directory|file> ...]`",
         "phpunit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
     },
     "extra": {

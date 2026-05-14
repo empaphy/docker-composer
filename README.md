@@ -1,6 +1,6 @@
-# docker-composer
+# Docker-Composer
 
-Composer plugin that ensures scripts are always executed within a Docker Compose service.
+**Docker-Composer** is a Composer plugin that ensures scripts are always executed within a Docker Compose service.
 
 ## Installation
 
@@ -9,8 +9,7 @@ composer config allow-plugins.empaphy/docker-composer true
 composer require --dev empaphy/docker-composer
 ```
 
-Composer 2.2 and newer require plugins to be allowed explicitly. Composer 1 ignores
-`allow-plugins`.
+Composer 2.2 and newer require plugins to be allowed explicitly.
 
 ## Configuration
 
@@ -109,7 +108,7 @@ requirements are resolved from inside the configured service:
 
 ## Laravel
 
-The package also registers a Laravel service provider through package
+**Docker-Composer** also registers a Laravel service provider through package
 autodiscovery. Publish and enable the Laravel config:
 
 ```bash

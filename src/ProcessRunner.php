@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace empaphy\docker_composer;
 
 /**
- * Runs external commands for Docker Composer.
+ * Runs external commands for Docker-Composer.
  */
 interface ProcessRunner
 {

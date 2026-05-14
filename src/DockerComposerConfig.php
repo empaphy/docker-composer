@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Defines Docker Composer configuration parsing.
+ * Defines Docker-Composer configuration parsing.
  *
  * @copyright 2026 The Empaphy Project
  * @author    Alwin Garside <alwin@garsi.de>
@@ -18,7 +18,7 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * Parses and exposes Docker Composer configuration from Composer metadata.
+ * Parses and exposes Docker-Composer configuration from Composer metadata.
  */
 final class DockerComposerConfig implements DockerComposeOptions
 {
@@ -26,7 +26,7 @@ final class DockerComposerConfig implements DockerComposeOptions
      * Names the Composer extra key used by this plugin.
      *
      * @var string
-     *   Stores the `extra` object key containing Docker Composer settings.
+     *   Stores the `extra` object key containing Docker-Composer settings.
      */
     public const EXTRA_KEY = 'docker-composer';
 
@@ -178,7 +178,7 @@ final class DockerComposerConfig implements DockerComposeOptions
      *   The Composer instance that owns the package metadata.
      *
      * @return self
-     *   Returns parsed Docker Composer configuration.
+     *   Returns parsed Docker-Composer configuration.
      *
      * @throws InvalidArgumentException
      *   Thrown when `extra.docker-composer` has an invalid shape or value.

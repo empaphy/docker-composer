@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Defines Laravel Docker Composer configuration parsing.
+ * Defines Laravel Docker-Composer configuration parsing.
  *
  * @copyright 2026 The Empaphy Project
  * @author    Alwin Garside <alwin@garsi.de>

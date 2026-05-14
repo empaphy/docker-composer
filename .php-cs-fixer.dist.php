@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $finder = (new PhpCsFixer\Finder())
     ->in([
+        __DIR__ . '/features/bootstrap',
         __DIR__ . '/src',
         __DIR__ . '/tests',
     ]);

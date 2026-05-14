@@ -875,7 +875,7 @@ class DockerComposerPluginTest extends TestCase
         $method = new \ReflectionMethod(DockerComposerPlugin::class, 'getProcessRunnerForCommand');
 
         $this->expectException(ScriptExecutionException::class);
-        $this->expectExceptionMessage('Docker Composer plugin was not activated.');
+        $this->expectExceptionMessage('Docker-Composer plugin was not activated.');
 
         $method->invoke($plugin);
     }

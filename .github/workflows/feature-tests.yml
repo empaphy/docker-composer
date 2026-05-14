@@ -1,0 +1,40 @@
+name: Feature Tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: Operating System
+        required: false
+        type: string
+        default: ubuntu
+
+permissions:
+  checks:        write
+  contents:      read
+  issues:        read
+  pull-requests: write
+
+jobs:
+  feature-tests:
+    name: Behat
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
+        behat-profile: ['latest', 'lowest']
+      fail-fast: false
+    runs-on: ${{ inputs.os }}-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP and Install Composer Packages
+        uses: ./.github/actions/setup
+        with:
+          php-version: '${{ matrix.php-version }}'
+
+      - name: Run Docker-Composer Feature Tests
+        shell: bash
+        env:
+          XDEBUG_MODE: 'off'
+        run: behat --profile ${{ inputs.behat-profile }}
