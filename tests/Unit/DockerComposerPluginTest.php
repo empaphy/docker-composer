@@ -643,6 +643,57 @@ class DockerComposerPluginTest extends TestCase
         self::assertStringContainsString('Running composer install in Docker Compose service php.', $io->getOutput());
     }
 
+    public function testRedirectedCommandUsesActiveHostWorkingDirectoryMapping(): void
+    {
+        $previousCwd = getcwd();
+        self::assertIsString($previousCwd);
+
+        $projectRoot = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'docker-composer-' . bin2hex(random_bytes(8));
+        $packageDirectory = $projectRoot . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR . 'demo';
+        self::assertTrue(mkdir($packageDirectory, 0777, true));
+        $hostMountedDirectory = realpath($projectRoot);
+        $hostPackageDirectory = realpath($packageDirectory);
+        self::assertIsString($hostMountedDirectory);
+        self::assertIsString($hostPackageDirectory);
+
+        try {
+            self::assertTrue(chdir($hostMountedDirectory));
+            [$composer, $io] = $this->createComposer([], [
+                'docker-composer' => [
+                    'service' => 'php',
+                ],
+            ]);
+            $runner = new MockOutputCapturingProcessRunner(
+                [0, 0, 0],
+                outputs: [
+                    $this->composeConfigWithVolumes([
+                        ['type' => 'bind', 'source' => $hostMountedDirectory, 'target' => '/workspace'],
+                    ]),
+                    'php' . PHP_EOL,
+                ],
+            );
+            $plugin = new DockerComposerPlugin($runner, new MockContainerDetector(false));
+            $insidePath = $hostPackageDirectory . DIRECTORY_SEPARATOR . 'local-package';
+            $siblingPath = $hostMountedDirectory . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR . 'sibling-package';
+            $input = new ArgvInput(['composer', 'require', $insidePath, $siblingPath]);
+            $input->setInteractive(false);
+            $event = new PreCommandRunEvent(PluginEvents::PRE_COMMAND_RUN, $input, 'require');
+
+            self::assertTrue(chdir($hostPackageDirectory));
+            $plugin->activate($composer, $io);
+            $this->assertCommandExecutionStops($plugin, $event);
+
+            self::assertSame('/workspace/packages/demo', $runner->commands[2][5]);
+            self::assertSame('/workspace/packages/demo/local-package', $runner->commands[2][11]);
+            self::assertSame($siblingPath, $runner->commands[2][12]);
+        } finally {
+            chdir($previousCwd);
+            rmdir($packageDirectory);
+            rmdir(dirname($packageDirectory));
+            rmdir($projectRoot);
+        }
+    }
+
     public function testRedirectsDependencyCommandsBeforeHostExecution(): void
     {
         [$composer, $io] = $this->createComposer([], [
@@ -1109,6 +1160,20 @@ class DockerComposerPluginTest extends TestCase
             'services' => [
                 'php' => [
                     'working_dir' => '/usr/src/app',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param  list<array<string, string>>  $volumes
+     */
+    private function composeConfigWithVolumes(array $volumes): string
+    {
+        return json_encode([
+            'services' => [
+                'php' => [
+                    'volumes' => $volumes,
                 ],
             ],
         ], JSON_THROW_ON_ERROR);

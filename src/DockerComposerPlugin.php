@@ -24,6 +24,7 @@ use Composer\Plugin\PreCommandRunEvent;
 use Composer\Plugin\PluginEvents;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event as ScriptEvent;
+use Composer\Util\Platform;
 use Composer\Util\ProcessExecutor;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
@@ -51,11 +52,6 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private ?IOInterface $io = null;
 
     /**
-     * Stores the Composer instance passed during activation.
-     */
-    private ?Composer $composer = null;
-
-    /**
      * Stores parsed Docker Composer configuration.
      */
     private ?DockerComposerConfig $config = null;
@@ -81,7 +77,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private ?DockerComposeRunner $dockerRunner = null;
 
     /**
-     * Resolves container workdir and project path mapping.
+     * Resolves container workdir and host directory mapping.
      */
     private DockerComposeWorkdirResolver $workdirResolver;
 
@@ -142,7 +138,6 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     public function activate(Composer $composer, IOInterface $io)
     {
         $this->io = $io;
-        $this->composer = $composer;
         $this->config = DockerComposerConfig::fromComposer($composer);
         $this->processRunner ??= new ComposerProcessRunner($io);
 
@@ -511,12 +506,16 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private function runInDocker(ScriptEvent $event, DockerComposerConfig $config): void
     {
         $runner = $this->getProcessRunner($event);
-        $config = $this->resolveDockerOptions($config, $this->getComposerProjectRoot($event->getComposer()), $runner);
+        $hostWorkingDirectory = $this->getHostWorkingDirectory();
+        $resolution = $this->resolveDockerWorkdir($config, $hostWorkingDirectory, $runner);
+        $config = new DockerComposeResolvedOptions($config, $resolution->getWorkdir());
         $isInteractive = $event->getIO()->isInteractive() && $runner->supportsTty();
         $scriptCommand = $this->commandBuilder->buildScriptCommand(
             $config,
             $event,
             $isInteractive,
+            $hostWorkingDirectory,
+            $resolution->getContainerWorkingDirectory(),
         );
         $this->runDockerCommand($runner, $config, $scriptCommand, $isInteractive);
     }
@@ -539,13 +538,17 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private function runComposerCommandInDocker(PreCommandRunEvent $event, DockerComposerConfig $config): void
     {
         $runner = $this->getProcessRunnerForCommand();
-        $config = $this->resolveDockerOptions($config, $this->getComposerProjectRoot($this->composer), $runner);
+        $hostWorkingDirectory = $this->getHostWorkingDirectory();
+        $resolution = $this->resolveDockerWorkdir($config, $hostWorkingDirectory, $runner);
+        $config = new DockerComposeResolvedOptions($config, $resolution->getWorkdir());
         $isInteractive = $event->getInput()->isInteractive() && $runner->supportsTty();
         $command = $this->commandBuilder->buildComposerCommand(
             $config,
             $event->getCommand(),
             $event->getInput(),
             $isInteractive,
+            $hostWorkingDirectory,
+            $resolution->getContainerWorkingDirectory(),
         );
         $this->runDockerCommand($runner, $config, $command, $isInteractive);
     }
@@ -593,43 +596,31 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      * @param  DockerComposerConfig  $config
      *   The parsed Docker Composer configuration.
      *
-     * @param  string  $projectRoot
-     *   The host project root.
+     * @param  string  $hostWorkingDirectory
+     *   The active host working directory.
      *
      * @param  ProcessRunner  $runner
      *   The runner used for Docker commands.
      *
-     * @return DockerComposeOptions
-     *   Returns options with resolved workdir applied.
+     * @return DockerComposeWorkdirResolution
+     *   Returns inferred workdir and host directory mapping.
      */
-    private function resolveDockerOptions(DockerComposerConfig $config, string $projectRoot, ProcessRunner $runner): DockerComposeOptions
+    private function resolveDockerWorkdir(DockerComposerConfig $config, string $hostWorkingDirectory, ProcessRunner $runner): DockerComposeWorkdirResolution
     {
-        $resolution = $this->workdirResolver->resolve($config, $projectRoot, $runner, $this->getDockerRunner($runner));
-
-        return new DockerComposeResolvedOptions($config, $resolution->getWorkdir());
+        return $this->workdirResolver->resolve($config, $hostWorkingDirectory, $runner, $this->getDockerRunner($runner));
     }
 
     /**
-     * Gets the active Composer project root.
-     *
-     * @param  Composer|null  $composer
-     *   The active Composer instance, or `null`.
+     * Gets the active host working directory.
      *
      * @return string
-     *   Returns the host project root, falling back to current directory.
+     *   Returns Composer's current directory, falling back to process CWD.
      */
-    private function getComposerProjectRoot(?Composer $composer): string
+    private function getHostWorkingDirectory(): string
     {
-        if ($composer !== null) {
-            $config = $composer->getConfig();
-            $reflection = new \ReflectionObject($config);
-            if ($reflection->hasProperty('baseDir')) {
-                $property = $reflection->getProperty('baseDir');
-                $baseDir = $property->getValue($config);
-                if (is_string($baseDir) && $baseDir !== '') {
-                    return $baseDir;
-                }
-            }
+        $cwd = Platform::getCwd(true);
+        if ($cwd !== '') {
+            return $cwd;
         }
 
         $cwd = getcwd();

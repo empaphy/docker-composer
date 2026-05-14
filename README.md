@@ -85,10 +85,10 @@ then run normally because the plugin detects that Composer is already inside a
 container. It also treats `/.dockerenv`, `/run/.containerenv`, and common cgroup
 markers as container signals.
 
-When `workdir` is omitted, the plugin attempts to infer the host project root's
-container path from Docker Compose bind volumes. If no mapping is found, it
-falls back to configured service `working_dir`, probing `pwd`, then image
-`Config.WorkingDir`. Path translation only runs when a host-to-container
+When `workdir` is omitted, the plugin attempts to infer the active host working
+directory's container path from Docker Compose bind volumes. If no mapping is
+found, it falls back to configured service `working_dir`, probing `pwd`, then
+image `Config.WorkingDir`. Path translation only runs when a host-to-container
 mapping is known.
 
 Set `DOCKER_COMPOSER_DISABLE=1` to bypass Docker redirection temporarily.

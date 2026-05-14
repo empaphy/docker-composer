@@ -26,7 +26,7 @@ use empaphy\docker_composer\ProcessRunner;
 final class Redirector
 {
     /**
-     * Resolves container workdir and project path mapping.
+     * Resolves container workdir and host directory mapping.
      */
     private DockerComposeWorkdirResolver $workdirResolver;
 
@@ -90,9 +90,9 @@ final class Redirector
         $resolution = $this->workdirResolver->resolve($effectiveConfig, $projectRoot, $this->processRunner, $this->dockerRunner);
         $effectiveOptions = new DockerComposeResolvedOptions($effectiveConfig, $resolution->getWorkdir());
         $arguments = $entry->getArguments();
-        if ($resolution->hasPathMapping() && $resolution->getContainerProjectRoot() !== null) {
+        if ($resolution->hasPathMapping() && $resolution->getContainerWorkingDirectory() !== null) {
             $arguments = $this->absolutizeEntrypoint($arguments, $projectRoot);
-            $arguments = $this->commandBuilder->translateProjectPaths($arguments, $projectRoot, $resolution->getContainerProjectRoot());
+            $arguments = $this->commandBuilder->translateProjectPaths($arguments, $projectRoot, $resolution->getContainerWorkingDirectory());
         }
 
         $command = $this->commandBuilder->buildProcessCommand($effectiveOptions, $arguments, $interactive);

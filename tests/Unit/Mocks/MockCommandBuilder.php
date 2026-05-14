@@ -25,8 +25,13 @@ final class MockCommandBuilder extends DockerComposeCommandBuilder
         return ['php', '-r', 'echo \'{"services":{"php":{"working_dir":"/usr/src/app"}}}\';'];
     }
 
-    public function buildScriptCommand(DockerComposeOptions $config, ScriptEvent $event, bool $interactive): array
-    {
+    public function buildScriptCommand(
+        DockerComposeOptions $config,
+        ScriptEvent $event,
+        bool $interactive,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
         return ['php', '-r', 'exit(0);'];
     }
 }

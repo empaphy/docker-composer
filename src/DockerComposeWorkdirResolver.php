@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace empaphy\docker_composer;
 
 /**
- * Resolves container workdir and host project path mapping.
+ * Resolves container workdir and host directory mapping.
  */
 final class DockerComposeWorkdirResolver
 {
@@ -34,8 +34,8 @@ final class DockerComposeWorkdirResolver
      * @param  DockerComposeOptions  $config
      *   The effective Docker Compose service options.
      *
-     * @param  string  $hostProjectRoot
-     *   The absolute project root on the host.
+     * @param  string  $hostWorkingDirectory
+     *   The active working directory on the host.
      *
      * @param  ProcessRunner|null  $processRunner
      *   The runner used for discovery commands, or `null` to skip them.
@@ -44,31 +44,31 @@ final class DockerComposeWorkdirResolver
      *   The Docker Compose runner used to prepare exec probes.
      *
      * @return DockerComposeWorkdirResolution
-     *   Returns inferred workdir and host project path mapping.
+     *   Returns inferred workdir and host directory mapping.
      */
     public function resolve(
         DockerComposeOptions $config,
-        string $hostProjectRoot,
+        string $hostWorkingDirectory,
         ?ProcessRunner $processRunner = null,
         ?DockerComposeRunner $dockerRunner = null,
     ): DockerComposeWorkdirResolution {
         $workdir = $config->getWorkdir();
-        $containerProjectRoot = null;
+        $containerWorkingDirectory = null;
         $service = $processRunner instanceof OutputCapturingProcessRunner
             ? $this->readComposeService($config, $processRunner)
             : null;
 
         if ($service !== null) {
-            $containerProjectRoot = $this->inferContainerProjectRoot($service, $hostProjectRoot);
-            if ($containerProjectRoot !== null && $workdir === null) {
-                $workdir = $containerProjectRoot;
+            $containerWorkingDirectory = $this->inferContainerWorkingDirectory($service, $hostWorkingDirectory);
+            if ($containerWorkingDirectory !== null && $workdir === null) {
+                $workdir = $containerWorkingDirectory;
             }
 
             $workdir ??= $this->readServiceWorkingDir($service);
         }
 
-        if ($containerProjectRoot === null && $config->getWorkdir() !== null) {
-            $containerProjectRoot = $config->getWorkdir();
+        if ($containerWorkingDirectory === null && $config->getWorkdir() !== null) {
+            $containerWorkingDirectory = $config->getWorkdir();
         }
 
         if ($workdir === null && $processRunner instanceof OutputCapturingProcessRunner) {
@@ -79,7 +79,7 @@ final class DockerComposeWorkdirResolver
             $workdir = $this->inspectImageWorkdir($service, $processRunner);
         }
 
-        return new DockerComposeWorkdirResolution($workdir, $containerProjectRoot);
+        return new DockerComposeWorkdirResolution($workdir, $containerWorkingDirectory);
     }
 
     /**
@@ -117,25 +117,25 @@ final class DockerComposeWorkdirResolver
     }
 
     /**
-     * Infers the container project root from service bind volumes.
+     * Infers the container working directory from service bind volumes.
      *
      * @param  array<string, mixed>  $service
      *   The Docker Compose service config object.
      *
-     * @param  string  $hostProjectRoot
-     *   The absolute project root on the host.
+     * @param  string  $hostWorkingDirectory
+     *   The active working directory on the host.
      *
      * @return string|null
-     *   Returns the mapped container project root, or `null`.
+     *   Returns the mapped container working directory, or `null`.
      */
-    private function inferContainerProjectRoot(array $service, string $hostProjectRoot): ?string
+    private function inferContainerWorkingDirectory(array $service, string $hostWorkingDirectory): ?string
     {
         $volumes = $service['volumes'] ?? null;
         if (! is_array($volumes) || ! array_is_list($volumes)) {
             return null;
         }
 
-        $hostProjectRoot = $this->normalizePath($hostProjectRoot);
+        $hostWorkingDirectory = $this->normalizePath($hostWorkingDirectory);
         $bestSource = null;
         $bestTarget = null;
 
@@ -152,11 +152,11 @@ final class DockerComposeWorkdirResolver
 
             $source = $this->normalizePath($source);
             $target = $this->normalizePath($target);
-            if ($source === $hostProjectRoot) {
+            if ($source === $hostWorkingDirectory) {
                 return $target;
             }
 
-            if ($this->isPathAncestor($source, $hostProjectRoot) && ($bestSource === null || strlen($source) > strlen($bestSource))) {
+            if ($this->isPathAncestor($source, $hostWorkingDirectory) && ($bestSource === null || strlen($source) > strlen($bestSource))) {
                 $bestSource = $source;
                 $bestTarget = $target;
             }
@@ -166,7 +166,7 @@ final class DockerComposeWorkdirResolver
             return null;
         }
 
-        return $this->appendPath($bestTarget, substr($hostProjectRoot, strlen($bestSource)));
+        return $this->appendPath($bestTarget, substr($hostWorkingDirectory, strlen($bestSource)));
     }
 
     /**

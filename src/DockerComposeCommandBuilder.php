@@ -70,12 +70,27 @@ class DockerComposeCommandBuilder
      * @param  bool  $interactive
      *   Whether the Docker command should keep TTY interaction enabled.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments for `docker compose exec` or `run`.
      */
-    public function buildScriptCommand(DockerComposeOptions $config, ScriptEvent $event, bool $interactive): array
-    {
-        return $this->buildProcessCommand($config, $this->composerRunScriptCommand($event), $interactive);
+    public function buildScriptCommand(
+        DockerComposeOptions $config,
+        ScriptEvent $event,
+        bool $interactive,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
+        return $this->buildProcessCommand(
+            $config,
+            $this->composerRunScriptCommand($event, $hostPathRoot, $containerPathRoot),
+            $interactive,
+        );
     }
 
     /**
@@ -93,12 +108,29 @@ class DockerComposeCommandBuilder
      * @param  bool  $interactive
      *   Whether the Docker command should keep TTY interaction enabled.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments for `docker compose exec` or `run`.
      */
-    public function buildComposerCommand(DockerComposeOptions $config, string $commandName, InputInterface $input, bool $interactive): array
-    {
-        return $this->buildProcessCommand($config, array_merge(['composer'], $this->getCommandArguments($input, $commandName)), $interactive);
+    public function buildComposerCommand(
+        DockerComposeOptions $config,
+        string $commandName,
+        InputInterface $input,
+        bool $interactive,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
+        $arguments = $this->getCommandArguments($input, $commandName);
+        if ($hostPathRoot !== null) {
+            $arguments = $this->translateProjectPaths($arguments, $hostPathRoot, $containerPathRoot);
+        }
+
+        return $this->buildProcessCommand($config, array_merge(['composer'], $arguments), $interactive);
     }
 
     /**
@@ -220,28 +252,28 @@ class DockerComposeCommandBuilder
     }
 
     /**
-     * Translates absolute host project paths in command arguments.
+     * Translates absolute host paths in command arguments.
      *
      * @param  list<string>  $arguments
      *   The host command arguments.
      *
-     * @param  string  $hostProjectRoot
-     *   The absolute project root on the host.
+     * @param  string  $hostPathRoot
+     *   The host directory whose descendants can be translated.
      *
-     * @param  string|null  $containerWorkdir
-     *   The configured container workdir, or `null` to leave paths unchanged.
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
      *
      * @return list<string>
-     *   Returns arguments with project-root paths translated into container paths.
+     *   Returns arguments with host paths translated into container paths.
      */
-    public function translateProjectPaths(array $arguments, string $hostProjectRoot, ?string $containerWorkdir): array
+    public function translateProjectPaths(array $arguments, string $hostPathRoot, ?string $containerPathRoot): array
     {
-        if ($containerWorkdir === null) {
+        if ($containerPathRoot === null) {
             return $arguments;
         }
 
-        $hostProjectRoot = $this->normalizePath($hostProjectRoot);
-        $containerWorkdir = rtrim($this->normalizePath($containerWorkdir), '/');
+        $hostPathRoot = $this->normalizePath($hostPathRoot);
+        $containerPathRoot = rtrim($this->normalizePath($containerPathRoot), '/');
         $translated = [];
 
         foreach ($arguments as $argument) {
@@ -253,14 +285,14 @@ class DockerComposeCommandBuilder
             }
 
             $normalizedPath = $this->normalizePath($path);
-            if ($normalizedPath === $hostProjectRoot) {
-                $translated[] = $prefix . $containerWorkdir;
+            if ($normalizedPath === $hostPathRoot) {
+                $translated[] = $prefix . $containerPathRoot;
 
                 continue;
             }
 
-            if (str_starts_with($normalizedPath, $hostProjectRoot . '/')) {
-                $translated[] = $prefix . $containerWorkdir . substr($normalizedPath, strlen($hostProjectRoot));
+            if (str_starts_with($normalizedPath, $hostPathRoot . '/')) {
+                $translated[] = $prefix . $containerPathRoot . substr($normalizedPath, strlen($hostPathRoot));
 
                 continue;
             }
@@ -303,11 +335,20 @@ class DockerComposeCommandBuilder
      * @param  ScriptEvent  $event
      *   The script event whose name, flags, and arguments are replayed.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments beginning with `composer run-script`.
      */
-    private function composerRunScriptCommand(ScriptEvent $event): array
-    {
+    private function composerRunScriptCommand(
+        ScriptEvent $event,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
         $command = [
             'composer',
             'run-script',
@@ -327,11 +368,16 @@ class DockerComposeCommandBuilder
         }
 
         $command[] = '--';
+        $scriptArguments = [];
         foreach ($arguments as $argument) {
-            $command[] = $this->stringifyArgument($argument);
+            $scriptArguments[] = $this->stringifyArgument($argument);
         }
 
-        return $command;
+        if ($hostPathRoot !== null) {
+            $scriptArguments = $this->translateProjectPaths($scriptArguments, $hostPathRoot, $containerPathRoot);
+        }
+
+        return array_merge($command, $scriptArguments);
     }
 
     /**

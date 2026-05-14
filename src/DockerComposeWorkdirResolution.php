@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace empaphy\docker_composer;
 
 /**
- * Stores inferred container workdir and host project path mapping.
+ * Stores inferred container workdir and host directory mapping.
  */
 final class DockerComposeWorkdirResolution
 {
@@ -24,12 +24,12 @@ final class DockerComposeWorkdirResolution
      * @param  string|null  $workdir
      *   The container working directory, or `null` when unavailable.
      *
-     * @param  string|null  $containerProjectRoot
-     *   The container path matching the host project root, or `null`.
+     * @param  string|null  $containerWorkingDirectory
+     *   The container path matching the host working directory, or `null`.
      */
     public function __construct(
         private readonly ?string $workdir,
-        private readonly ?string $containerProjectRoot,
+        private readonly ?string $containerWorkingDirectory,
     ) {}
 
     /**
@@ -44,24 +44,37 @@ final class DockerComposeWorkdirResolution
     }
 
     /**
-     * Gets the container project root mapping.
+     * Gets the container working directory mapping.
      *
      * @return string|null
-     *   Returns the container path matching the host project root, or `null`.
+     *   Returns the container path matching the host working directory, or `null`.
      */
-    public function getContainerProjectRoot(): ?string
+    public function getContainerWorkingDirectory(): ?string
     {
-        return $this->containerProjectRoot;
+        return $this->containerWorkingDirectory;
     }
 
     /**
-     * Checks whether host project paths can be translated.
+     * Gets the legacy container project root mapping.
+     *
+     * @return string|null
+     *   Returns the container path matching the host directory, or `null`.
+     *
+     * @deprecated Use {@see getContainerWorkingDirectory()} instead.
+     */
+    public function getContainerProjectRoot(): ?string
+    {
+        return $this->containerWorkingDirectory;
+    }
+
+    /**
+     * Checks whether host paths can be translated.
      *
      * @return bool
-     *   Returns `true` when the host project root has a container path.
+     *   Returns `true` when the host directory has a container path.
      */
     public function hasPathMapping(): bool
     {
-        return $this->containerProjectRoot !== null;
+        return $this->containerWorkingDirectory !== null;
     }
 }
