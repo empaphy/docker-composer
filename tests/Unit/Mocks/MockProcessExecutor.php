@@ -18,15 +18,14 @@ final class MockProcessExecutor extends ProcessExecutor
      */
     public array $ttyCommands = [];
 
-    /**
-     * @noinspection PhpMissingParentConstructorInspection
-     */
     public function __construct(
         private readonly int $executeExitCode,
         private readonly int $ttyExitCode,
         private readonly string $testErrorOutput,
         private readonly string $testOutput = '',
-    ) {}
+    ) {
+        parent::__construct();
+    }
 
     /**
      * @param  string|non-empty-list<string>  $command

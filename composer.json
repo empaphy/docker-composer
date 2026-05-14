@@ -25,10 +25,13 @@
     "require-dev": {
         "composer/composer": ">=1.1",
         "empaphy/filharmonic": "^1",
+        "illuminate/console": ">=10",
         "illuminate/support": ">=10",
         "friendsofphp/php-cs-fixer": "^3",
+        "phpstan/extension-installer": "^1",
         "phpstan/phpstan": "^2",
         "phpstan/phpstan-phpunit": "^2",
+        "phpstan/phpstan-strict-rules": "^2",
         "phpunit/phpunit": ">=10"
     },
     "autoload": {
@@ -47,6 +50,9 @@
                 "PKSA-z3gr-8qht-p93v"
                 : "'PHPUnit Vulnerable to Unsafe Deserialization in PHPT Code Coverage Handling' – We don't use PHPT"
             }
+        },
+        "allow-plugins": {
+            "phpstan/extension-installer": true
         }
     },
     "scripts": {

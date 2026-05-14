@@ -17,6 +17,7 @@ use empaphy\docker_composer\DockerComposeCommandBuilder;
 use empaphy\docker_composer\DockerComposeRunner;
 use empaphy\docker_composer\EnvironmentContainerDetector;
 use empaphy\docker_composer\ShellProcessRunner;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\ServiceProvider as IlluminateServiceProvider;
 use Throwable;
@@ -145,7 +146,7 @@ final class ServiceProvider extends IlluminateServiceProvider
             return;
         }
 
-        $events->listen('Illuminate\Console\Events\CommandStarting', function (object $event) use ($config, $redirector, $arguments, $projectRoot): void {
+        $events->listen(CommandStarting::class, function (CommandStarting $event) use ($config, $redirector, $arguments, $projectRoot): void {
             $commandName = $this->getEventCommandName($event);
             $this->exitIfRedirected($redirector->redirect(
                 $config,
@@ -183,13 +184,13 @@ final class ServiceProvider extends IlluminateServiceProvider
     /**
      * Gets the Artisan command name from a Laravel command event.
      *
-     * @param  object  $event
-     *   The `Illuminate\Console\Events\CommandStarting` event.
+     * @param  CommandStarting  $event
+     *   The event.
      *
      * @return string|null
      *   Returns the command name, or `null` when unavailable.
      */
-    private function getEventCommandName(object $event): ?string
+    private function getEventCommandName(CommandStarting $event): ?string
     {
         $command = $event->command ?? null;
 
