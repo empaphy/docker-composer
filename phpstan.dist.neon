@@ -3,6 +3,7 @@ parameters:
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
     level: 8
     paths:
+        - features/bootstrap/
         - src/
         - tests/
     resultCachePath: var/cache/phpstan/resultCache.php

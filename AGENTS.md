@@ -1,15 +1,29 @@
+## Project Structure
+- `config/`: Configuration files for Laravel support.
+- `features/`: Behat feature test suite, written in Gerkin.
+  - `features/bootstrap/`: Behat Context classes.
+- `src/`: Source files organized by domain. Follows PSR-4.
+  - `src/Laravel/`: Source code related to Laravel support.
+- `tests/`: Test suites, test-specific traits and seeders.
+  - `tests/Unit/`: Unit test suite for PHPUnit.
+  - `tests/Integration/`: Integration test suite for PHPUnit.
+- `vendor/`: Vendor packages, installed with Composer.
+
 ## General Instructions
 In commit messages use conventional commits and provide justification of the changes in the body.
 
 ## Plan Mode
 At the end of each plan, give me a list of unresolved questions to answer, if any.
-When asking the user to choose an approach, consider whether implementing multiple approaches that can be chained as fallbacks is the recommended options.
+When asking the user to choose an approach, consider whether chaining multiple approaches is also a valid or even the recommended option.
 
 ## Tests
 When writing unit tests, create a TestCase class for each class being tested.
 At the end of every task, execute these commands to ensure the quality of the code:
-- `composer style-fix`
+- `composer cs-fix`
 - `composer check`
+
+### Feature Tests
+When adding new behavior, write a Behat feature spec that covers it. When changing behavior, update the corresponding Behat feature spec.
 
 ### Coverage
 All unit tests are required to have both a branch and line coverage of 100%.

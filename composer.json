@@ -23,6 +23,7 @@
         "composer-plugin-api": ">=1.1"
     },
     "require-dev": {
+        "behat/behat": "^3",
         "composer/composer": ">=1.1",
         "empaphy/filharmonic": "^1",
         "illuminate/console": ">=10",
@@ -56,21 +57,27 @@
         }
     },
     "scripts": {
-        "check": ["@style-check", "@stan", "@test"],
-        "style-check": "XDEBUG_MODE=off php-cs-fixer check",
-        "style-fix": "XDEBUG_MODE=off php-cs-fixer fix",
-        "stan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
-        "test": "XDEBUG_MODE=coverage phpunit --coverage-text",
-        "test-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
-        "test-unit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
+        "behat": "XDEBUG_MODE=off behat",
+        "check": ["@cs-check", "@stan", "@test"],
+        "cs-check": "XDEBUG_MODE=off php-cs-fixer check",
+        "cs-fix": "XDEBUG_MODE=off php-cs-fixer fix",
+        "phpstan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
+        "test": [
+            "XDEBUG_MODE=coverage phpunit --coverage-text",
+            "@feat"
+        ],
+        "phpunit-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
+        "phpunit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
     },
     "scripts-descriptions": {
-        "style-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
-        "style-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
-        "stan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
-        "test": "Run all test suites using `phpunit --coverage-text [options] [<directory|file> ...]`",
-        "test-integration": "Run Integration test suite using `phpunit --testsuite Integration [options] [<directory|file> ...]`",
-        "test-unit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
+        "behat": "Run Behat feature tests using `behat [options] [--] [<paths>...]`.",
+        "check": "Perform all automated checks.",
+        "cs-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
+        "cs-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
+        "phptan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
+        "test": "Run all test suites.",
+        "phpunit-integration": "Run Integration test suite using `phpunit --testsuite Integration [options] [<directory|file> ...]`",
+        "phpunit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
     },
     "extra": {
         "class": "empaphy\\docker_composer\\DockerComposerPlugin",
