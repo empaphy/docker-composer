@@ -33,6 +33,11 @@ final class ConsoleEntry
     private array $arguments;
 
     /**
+     * Stores the entry name shown in redirect notices.
+     */
+    private string $displayName;
+
+    /**
      * Creates a Laravel console entry.
      *
      * @param  list<string>  $names
@@ -40,11 +45,15 @@ final class ConsoleEntry
      *
      * @param  list<string>  $arguments
      *   The raw CLI arguments to replay inside Docker.
+     *
+     * @param  string  $displayName
+     *   The entry name shown in redirect notices.
      */
-    private function __construct(array $names, array $arguments)
+    private function __construct(array $names, array $arguments, string $displayName)
     {
         $this->names = array_values(array_unique($names));
         $this->arguments = $arguments;
+        $this->displayName = $displayName;
     }
 
     /**
@@ -65,15 +74,17 @@ final class ConsoleEntry
     public static function artisan(?string $commandName, ?string $commandClass, array $arguments): self
     {
         $names = [];
+        $displayName = $arguments[0] ?? 'artisan';
         if ($commandName !== null && $commandName !== '') {
             $names[] = $commandName;
+            $displayName = 'artisan ' . $commandName;
         }
 
         if ($commandClass !== null && $commandClass !== '') {
             $names[] = $commandClass;
         }
 
-        return new self($names, $arguments);
+        return new self($names, $arguments, $displayName);
     }
 
     /**
@@ -90,7 +101,7 @@ final class ConsoleEntry
      */
     public static function script(string $scriptName, array $arguments): self
     {
-        return new self([$scriptName], $arguments);
+        return new self([$scriptName], $arguments, $scriptName);
     }
 
     /**
@@ -141,5 +152,16 @@ final class ConsoleEntry
     public function getArguments(): array
     {
         return $this->arguments;
+    }
+
+    /**
+     * Gets the entry name shown in redirect notices.
+     *
+     * @return string
+     *   Returns a human-readable Artisan command or script identifier.
+     */
+    public function getDisplayName(): string
+    {
+        return $this->displayName;
     }
 }

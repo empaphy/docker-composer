@@ -9,6 +9,7 @@ Feature: Laravel package integration
     When I configure Laravel Docker-Composer redirection
     And I run "docker compose down --volumes --remove-orphans" in the project
     And I run "DOCKER_COMPOSER_LARAVEL=true php artisan mark" in the project
+    Then the last command error output should contain "Running artisan mark in Docker Compose service php."
     Then the project file "result.txt" should contain "1"
     When I run "DOCKER_COMPOSER_LARAVEL=true php artisan class-map" in the project
     Then the project file "class.txt" should contain "mapped"

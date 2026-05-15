@@ -49,11 +49,13 @@ final class RedirectorTest extends TestCase
         ]);
         $runner = new MockProcessRunner();
         $builder = new DockerComposeCommandBuilder();
-        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false));
+        $errorOutput = $this->createErrorOutput();
+        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput);
 
         $exitCode = $redirector->redirect($config, ConsoleEntry::artisan('config:cache', null, ['/host/app/artisan', 'config:cache']), '/host/app', false);
 
         self::assertSame(0, $exitCode);
+        self::assertSame("docker-composer: Running artisan config:cache in Docker Compose service php-tools.\n", $this->readErrorOutput($errorOutput));
         self::assertSame([
             ['docker', 'compose', 'up', '-d', 'php-tools'],
             [
@@ -72,30 +74,53 @@ final class RedirectorTest extends TestCase
         ], $runner->commands);
     }
 
+    public function testRedirectNoticeKeepsEscapedConsoleTagsReadable(): void
+    {
+        $config = Config::fromArray([
+            'enabled' => true,
+            'service' => 'php<service>',
+        ]);
+        $runner = new MockProcessRunner();
+        $builder = new DockerComposeCommandBuilder();
+        $errorOutput = $this->createErrorOutput();
+        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput);
+
+        $exitCode = $redirector->redirect($config, ConsoleEntry::artisan('bad<error>', null, ['artisan', 'bad<error>']), '/host/app', false);
+
+        self::assertSame(0, $exitCode);
+        self::assertSame("docker-composer: Running artisan bad<error> in Docker Compose service php<service>.\n", $this->readErrorOutput($errorOutput));
+    }
+
     public function testReturnsNullWhenDisabledInsideContainerExcludedOrUnconfigured(): void
     {
         $entry = ConsoleEntry::artisan('migrate', null, ['artisan', 'migrate']);
         $builder = new DockerComposeCommandBuilder();
+        $errorOutput = $this->createErrorOutput();
 
         $disabledRunner = new MockProcessRunner();
         $disabled = Config::fromArray(['enabled' => false, 'service' => 'php']);
-        self::assertNull((new Redirector(new DockerComposeRunner($disabledRunner, $builder), $builder, new MockContainerDetector(false)))->redirect($disabled, $entry, '/host/app', false));
+        self::assertNull((new Redirector(new DockerComposeRunner($disabledRunner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput))->redirect($disabled, $entry, '/host/app', false));
         self::assertSame([], $disabledRunner->commands);
+
+        $defaultOutputRunner = new MockProcessRunner();
+        self::assertNull((new Redirector(new DockerComposeRunner($defaultOutputRunner, $builder), $builder, new MockContainerDetector(false)))->redirect($disabled, $entry, '/host/app', false));
+        self::assertSame([], $defaultOutputRunner->commands);
 
         $insideRunner = new MockProcessRunner();
         $enabled = Config::fromArray(['enabled' => true, 'service' => 'php']);
-        self::assertNull((new Redirector(new DockerComposeRunner($insideRunner, $builder), $builder, new MockContainerDetector(true)))->redirect($enabled, $entry, '/host/app', false));
+        self::assertNull((new Redirector(new DockerComposeRunner($insideRunner, $builder), $builder, new MockContainerDetector(true), errorOutput: $errorOutput))->redirect($enabled, $entry, '/host/app', false));
         self::assertSame([], $insideRunner->commands);
 
         $excludedRunner = new MockProcessRunner();
         $excluded = Config::fromArray(['enabled' => true, 'service' => 'php', 'exclude' => ['migrate']]);
-        self::assertNull((new Redirector(new DockerComposeRunner($excludedRunner, $builder), $builder, new MockContainerDetector(false)))->redirect($excluded, $entry, '/host/app', false));
+        self::assertNull((new Redirector(new DockerComposeRunner($excludedRunner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput))->redirect($excluded, $entry, '/host/app', false));
         self::assertSame([], $excludedRunner->commands);
 
         $unconfiguredRunner = new MockProcessRunner();
         $unconfigured = Config::fromArray(['enabled' => true]);
-        self::assertNull((new Redirector(new DockerComposeRunner($unconfiguredRunner, $builder), $builder, new MockContainerDetector(false)))->redirect($unconfigured, $entry, '/host/app', false));
+        self::assertNull((new Redirector(new DockerComposeRunner($unconfiguredRunner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput))->redirect($unconfigured, $entry, '/host/app', false));
         self::assertSame([], $unconfiguredRunner->commands);
+        self::assertSame('', $this->readErrorOutput($errorOutput));
     }
 
     public function testRedirectSkipsEntrypointAbsolutizingWithoutPathMapping(): void
@@ -107,7 +132,7 @@ final class RedirectorTest extends TestCase
         ]);
         $runner = new MockProcessRunner();
         $builder = new DockerComposeCommandBuilder();
-        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false));
+        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), errorOutput: $this->createErrorOutput());
 
         try {
             $exitCode = $redirector->redirect($config, ConsoleEntry::artisan('migrate', null, ['artisan', 'migrate']), $projectRoot, false);
@@ -137,7 +162,7 @@ final class RedirectorTest extends TestCase
         ], JSON_THROW_ON_ERROR);
         $runner = new MockOutputCapturingProcessRunner([0, 0, 0], outputs: [$configOutput, "php\n"]);
         $builder = new DockerComposeCommandBuilder();
-        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), $runner);
+        $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), $runner, errorOutput: $this->createErrorOutput());
 
         try {
             $exitCode = $redirector->redirect($config, ConsoleEntry::artisan('migrate', null, ['artisan', 'migrate']), $projectRoot, false);
@@ -161,13 +186,38 @@ final class RedirectorTest extends TestCase
             ]);
             $runner = new MockProcessRunner();
             $builder = new DockerComposeCommandBuilder();
-            $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false));
+            $errorOutput = $this->createErrorOutput();
+            $redirector = new Redirector(new DockerComposeRunner($runner, $builder), $builder, new MockContainerDetector(false), errorOutput: $errorOutput);
 
             self::assertNull($redirector->redirect($config, ConsoleEntry::artisan('migrate', null, ['artisan', 'migrate']), '/host/app', false));
             self::assertSame([], $runner->commands);
+            self::assertSame('', $this->readErrorOutput($errorOutput));
         } finally {
             putenv('DOCKER_COMPOSER_DISABLE');
         }
+    }
+
+    /**
+     * @return resource
+     */
+    private function createErrorOutput()
+    {
+        $errorOutput = fopen('php://temp', 'w+');
+        if ($errorOutput === false) {
+            throw new \RuntimeException('Unable to create temporary error output stream.');
+        }
+
+        return $errorOutput;
+    }
+
+    /**
+     * @param  resource  $errorOutput
+     */
+    private function readErrorOutput($errorOutput): string
+    {
+        rewind($errorOutput);
+
+        return stream_get_contents($errorOutput) ?: '';
     }
 
     private function createProjectRootWithArtisan(): string

@@ -21,12 +21,26 @@ final class ConsoleEntryTest extends TestCase
 
         self::assertSame(['config:cache', ExampleConsoleEntryCommand::class], $entry->getNames());
         self::assertSame(['artisan', 'config:cache'], $entry->getArguments());
+        self::assertSame('artisan config:cache', $entry->getDisplayName());
+    }
+
+    public function testCreatesFallbackArtisanDisplayName(): void
+    {
+        $entry = ConsoleEntry::artisan(null, null, ['/host/app/artisan']);
+
+        self::assertSame([], $entry->getNames());
+        self::assertSame('/host/app/artisan', $entry->getDisplayName());
     }
 
     public function testCreatesRelativeScriptName(): void
     {
+        self::assertSame(':', ConsoleEntry::scriptName('/host/app', '/host/app'));
         self::assertSame(':scripts/task.php', ConsoleEntry::scriptName('/host/app/scripts/task.php', '/host/app'));
         self::assertSame(':scripts/task.php', ConsoleEntry::scriptName('scripts/task.php', '/host/app'));
+
+        $entry = ConsoleEntry::script(':scripts/task.php', ['scripts/task.php']);
+
+        self::assertSame(':scripts/task.php', $entry->getDisplayName());
     }
 }
 

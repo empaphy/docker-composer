@@ -19,6 +19,7 @@ use empaphy\docker_composer\DockerComposeResolvedOptions;
 use empaphy\docker_composer\DockerComposeRunner;
 use empaphy\docker_composer\DockerComposeWorkdirResolver;
 use empaphy\docker_composer\ProcessRunner;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /**
  * Redirects Laravel console entries into Docker Compose.
@@ -29,6 +30,13 @@ final class Redirector
      * Resolves container workdir and host directory mapping.
      */
     private DockerComposeWorkdirResolver $workdirResolver;
+
+    /**
+     * Receives redirect notices before Docker execution begins.
+     *
+     * @var resource
+     */
+    private $errorOutput;
 
     /**
      * Creates a Laravel console redirector.
@@ -47,6 +55,9 @@ final class Redirector
      *
      * @param  DockerComposeWorkdirResolver|null  $workdirResolver
      *   The workdir resolver, or `null` for the default resolver.
+     *
+     * @param  resource|null  $errorOutput
+     *   The writable stream receiving redirect notices, or `null` for stderr.
      */
     public function __construct(
         private readonly DockerComposeRunner $dockerRunner,
@@ -54,8 +65,15 @@ final class Redirector
         private readonly ContainerDetector $containerDetector,
         private readonly ?ProcessRunner $processRunner = null,
         ?DockerComposeWorkdirResolver $workdirResolver = null,
+        $errorOutput = null,
     ) {
         $this->workdirResolver = $workdirResolver ?? new DockerComposeWorkdirResolver($this->commandBuilder);
+        if ($errorOutput === null) {
+            /** @var resource $errorOutput */
+            $errorOutput = fopen('php://stderr', 'w');
+        }
+
+        $this->errorOutput = $errorOutput;
     }
 
     /**
@@ -87,6 +105,8 @@ final class Redirector
             return null;
         }
 
+        $this->writeRedirectNotice($entry, $effectiveConfig);
+
         $resolution = $this->workdirResolver->resolve($effectiveConfig, $projectRoot, $this->processRunner, $this->dockerRunner);
         $effectiveOptions = new DockerComposeResolvedOptions($effectiveConfig, $resolution->getWorkdir());
         $arguments = $entry->getArguments();
@@ -99,6 +119,29 @@ final class Redirector
         $result = $this->dockerRunner->run($effectiveOptions, $command, $interactive);
 
         return $result->getExitCode();
+    }
+
+    /**
+     * Writes a redirect notice to the configured error stream.
+     *
+     * @param  ConsoleEntry  $entry
+     *   The Laravel console entry being redirected.
+     *
+     * @param  Config  $config
+     *   The effective Docker configuration for the entry.
+     *
+     * @return void
+     *   Returns nothing.
+     */
+    private function writeRedirectNotice(ConsoleEntry $entry, Config $config): void
+    {
+        $formatter = new OutputFormatter(false);
+
+        fwrite($this->errorOutput, $formatter->format(sprintf(
+            '<info>docker-composer:</info> Running <comment>%s</comment> in Docker Compose service <comment>%s</comment>.',
+            OutputFormatter::escape($entry->getDisplayName()),
+            OutputFormatter::escape($config->getService()),
+        )) . PHP_EOL);
     }
 
     /**
