@@ -16,4 +16,5 @@ return (new PhpCsFixer\Config())
     ->setRules([
         '@PER-CS' => true,
         '@PER-CS:risky' => true,
+        //'psr_autoloading' => true,
     ]);

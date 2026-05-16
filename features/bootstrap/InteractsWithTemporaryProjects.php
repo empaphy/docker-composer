@@ -1,6 +1,7 @@
 <?php
 
 /**
+ * @noinspection PhpClassConstantAccessedViaChildClassInspection
  * @noinspection PhpIllegalPsrClassPathInspection
  * @noinspection PhpUnhandledExceptionInspection
  */
@@ -8,7 +9,6 @@
 declare(strict_types=1);
 
 use Behat\Hook\AfterScenario;
-use Behat\Step\Given;
 use Behat\Step\Then;
 use Behat\Step\When;
 use PHPUnit\Framework\Assert;
@@ -280,18 +280,19 @@ trait InteractsWithTemporaryProjects
         $this->dependencyResolutionMode = $dependencyResolutionMode;
     }
 
-    private function removeDirectory(string $directory): void
+    private function removeDirectory(string $directory): bool
     {
         if (! is_dir($directory)) {
-            return;
+            return true;
         }
 
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        );
-
-        foreach ($iterator as $fileInfo) {
+        foreach (
+            new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST,
+            ) as $fileInfo
+        ) {
+            assert($fileInfo instanceof SplFileInfo);
             if ($fileInfo->isDir() && ! $fileInfo->isLink()) {
                 rmdir($fileInfo->getPathname());
             } else {
@@ -299,7 +300,7 @@ trait InteractsWithTemporaryProjects
             }
         }
 
-        rmdir($directory);
+        return rmdir($directory);
     }
 
     private function getTempDir(): string

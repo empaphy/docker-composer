@@ -2,6 +2,8 @@ parameters:
     checkUninitializedProperties: true
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
     level: 8
+    parallel:
+        maximumNumberOfProcesses: 4
     paths:
         - features/bootstrap/
         - src/

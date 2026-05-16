@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace empaphy\docker_composer\Laravel;
 
+use Closure;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
 use empaphy\docker_composer\DockerComposeRunner;
 use empaphy\docker_composer\EnvironmentContainerDetector;
@@ -27,6 +28,33 @@ use Throwable;
  */
 final class ServiceProvider extends IlluminateServiceProvider
 {
+    /**
+     * Terminates the host process after successful Docker redirection.
+     *
+     * @var Closure(int): void
+     */
+    private Closure $terminator;
+
+    /**
+     * Creates the Laravel Docker service provider.
+     *
+     * @param  mixed  $app
+     *   The Laravel application instance.
+     *
+     * @param  (Closure(int): void)|null  $terminator
+     *   The process terminator, or `null` to use native `exit`.
+     */
+    public function __construct($app, ?Closure $terminator = null)
+    {
+        parent::__construct($app);
+
+        $this->terminator = $terminator ?? static function (int $exitCode): void {
+            // @codeCoverageIgnoreStart
+            exit($exitCode);
+            // @codeCoverageIgnoreEnd
+        };
+    }
+
     /**
      * Registers package configuration defaults.
      *
@@ -141,7 +169,12 @@ final class ServiceProvider extends IlluminateServiceProvider
             });
         }
 
-        $events = $this->app->make('events');
+        try {
+            $events = $this->app->make('events');
+        } catch (Throwable) {
+            return;
+        }
+
         if (! is_object($events) || ! method_exists($events, 'listen')) {
             return;
         }
@@ -302,7 +335,7 @@ final class ServiceProvider extends IlluminateServiceProvider
     private function exitIfRedirected(?int $exitCode): void
     {
         if ($exitCode !== null) {
-            exit($exitCode);
+            ($this->terminator)($exitCode);
         }
     }
 }

@@ -38,7 +38,7 @@ Do not duplicate code when a shared abstraction can cover the behavior.
 
 ### Coding Style
 All PHP code must adhere to PER Coding Style, which includes PSR-1: Basic Coding Standard.
-Files should _either_ declare symbols _or_ cause side-effects but not both.
+Each class must be in a file by itself.
 
 ### PHPDoc
 Add descriptive PHPDoc comments to all Structural Elements in PHP code under `src/`. For functions and methods include the return type, and the `@param` and `@return` tags for every argument.

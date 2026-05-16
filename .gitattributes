@@ -3,6 +3,7 @@
 /.op                          export-ignore
 /.run                         export-ignore
 /features                     export-ignore
+/stubs                        export-ignore
 /tests                        export-ignore
 /var                          export-ignore
 /vendor                       export-ignore

@@ -167,6 +167,150 @@ final class DockerComposeWorkdirResolverTest extends TestCase
         self::assertNull($empty->getContainerWorkingDirectory());
     }
 
+    public function testComposeConfigDiscoveryFailuresResolveNothing(): void
+    {
+        $this->assertUnresolvedAfterConfigDiscovery(new MockOutputCapturingProcessRunner([1], outputs: ['']));
+        $this->assertUnresolvedAfterConfigDiscovery(new MockOutputCapturingProcessRunner(outputs: ['not-json']));
+        $this->assertUnresolvedAfterConfigDiscovery(new MockOutputCapturingProcessRunner(outputs: [
+            json_encode(['networks' => []], JSON_THROW_ON_ERROR),
+        ]));
+        $this->assertUnresolvedAfterConfigDiscovery(new MockOutputCapturingProcessRunner(outputs: [
+            json_encode(['services' => ['worker' => []]], JSON_THROW_ON_ERROR),
+        ]));
+        $this->assertUnresolvedAfterConfigDiscovery(new MockOutputCapturingProcessRunner(outputs: [
+            json_encode(['services' => ['php' => 'invalid']], JSON_THROW_ON_ERROR),
+        ]));
+    }
+
+    public function testIgnoresNonListVolumesAndReadsWorkingDir(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(outputs: [$this->composeOutput([
+            'volumes' => [
+                'source' => '/host/app',
+                'target' => '/mounted',
+            ],
+            'working_dir' => '/srv/app',
+        ])]);
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner, $this->createRunner($runner));
+
+        self::assertSame('/srv/app', $resolution->getWorkdir());
+        self::assertNull($resolution->getContainerWorkingDirectory());
+    }
+
+    public function testIgnoresMalformedVolumeEntriesAndReadsWorkingDir(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(outputs: [$this->composeOutput([
+            'volumes' => [
+                'not-an-object',
+                ['type' => 'volume', 'source' => '/host/app', 'target' => '/mounted'],
+                ['type' => 'bind', 'source' => '', 'target' => '/mounted'],
+                ['type' => 'bind', 'source' => '/host/app', 'target' => ''],
+                ['type' => 'bind', 'source' => false, 'target' => '/mounted'],
+                ['type' => 'bind', 'source' => '/host/app', 'target' => false],
+            ],
+            'working_dir' => '/srv/app',
+        ])]);
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner, $this->createRunner($runner));
+
+        self::assertSame('/srv/app', $resolution->getWorkdir());
+        self::assertNull($resolution->getContainerWorkingDirectory());
+    }
+
+    public function testVolumeMappingNormalizesWindowsPaths(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(outputs: [$this->composeOutput([
+            'volumes' => [
+                ['type' => 'bind', 'source' => 'C:\\Users\\project', 'target' => '/workspace'],
+            ],
+        ])]);
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, 'C:\\Users\\project\\packages\\app', $runner, $this->createRunner($runner));
+
+        self::assertSame('/workspace/packages/app', $resolution->getWorkdir());
+        self::assertSame('/workspace/packages/app', $resolution->getContainerWorkingDirectory());
+    }
+
+    public function testVolumeMappingAppendsDescendantPathsToContainerRoot(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(outputs: [$this->composeOutput([
+            'volumes' => [
+                ['type' => 'bind', 'source' => '/host', 'target' => '/'],
+            ],
+        ])]);
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner, $this->createRunner($runner));
+
+        self::assertSame('/app', $resolution->getWorkdir());
+        self::assertSame('/app', $resolution->getContainerWorkingDirectory());
+    }
+
+    public function testAppendPathReturnsBaseForEmptySuffix(): void
+    {
+        $method = new \ReflectionMethod(DockerComposeWorkdirResolver::class, 'appendPath');
+
+        self::assertSame('/container', $method->invoke($this->createResolver(), '/container', ''));
+    }
+
+    public function testExecModeProbeReturnsNullWithoutDockerRunner(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(outputs: [$this->composeOutput([])]);
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner);
+
+        self::assertNull($resolution->getWorkdir());
+        self::assertNull($resolution->getContainerWorkingDirectory());
+        self::assertSame([['docker', 'compose', 'config', '--format', 'json']], $runner->commands);
+    }
+
+    public function testExecModeProbeReturnsNullWhenServiceStartupFails(): void
+    {
+        $runner = new MockOutputCapturingProcessRunner(
+            [0, 1, 2],
+            outputs: [$this->composeOutput([]), ''],
+        );
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner, $this->createRunner($runner));
+
+        self::assertNull($resolution->getWorkdir());
+        self::assertNull($resolution->getContainerWorkingDirectory());
+        self::assertSame(['config', 'ps', 'up'], [
+            $runner->commands[0][2],
+            $runner->commands[1][2],
+            $runner->commands[2][2],
+        ]);
+    }
+
+    public function testImageWorkdirFallbackReturnsNullWhenImageIsMissingOrEmpty(): void
+    {
+        foreach ([[], ['image' => '']] as $service) {
+            $runner = new MockOutputCapturingProcessRunner(
+                [0, 1],
+                outputs: [$this->composeOutput($service), ''],
+            );
+            $config = $this->createConfig([
+                'service' => 'php',
+                'mode' => 'run',
+            ]);
+
+            $resolution = $this->createResolver()->resolve($config, '/host/app', $runner, $this->createRunner($runner));
+
+            self::assertNull($resolution->getWorkdir());
+            self::assertNull($resolution->getContainerWorkingDirectory());
+            self::assertSame(['config', 'run'], [
+                $runner->commands[0][2],
+                $runner->commands[1][2],
+            ]);
+        }
+    }
+
     public function testResolvedOptionsDelegateExceptWorkdir(): void
     {
         $config = $this->createConfig([
@@ -190,6 +334,17 @@ final class DockerComposeWorkdirResolverTest extends TestCase
     private function composeOutput(array $service): string
     {
         return json_encode(['services' => ['php' => $service]], JSON_THROW_ON_ERROR);
+    }
+
+    private function assertUnresolvedAfterConfigDiscovery(MockOutputCapturingProcessRunner $runner): void
+    {
+        $config = $this->createConfig(['service' => 'php']);
+
+        $resolution = $this->createResolver()->resolve($config, '/host/app', $runner);
+
+        self::assertNull($resolution->getWorkdir());
+        self::assertNull($resolution->getContainerWorkingDirectory());
+        self::assertSame([['docker', 'compose', 'config', '--format', 'json']], $runner->commands);
     }
 
     /**
