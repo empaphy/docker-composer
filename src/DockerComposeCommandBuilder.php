@@ -26,13 +26,13 @@ class DockerComposeCommandBuilder
     /**
      * Builds the Docker Compose service startup command.
      *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that provides service options.
+     * @param  DockerComposeOptions  $config
+     *   The Docker-Composer configuration that provides service options.
      *
      * @return list<string>
      *   Returns command arguments for `docker compose up -d`.
      */
-    public function buildUpCommand(DockerComposerConfig $config): array
+    public function buildUpCommand(DockerComposeOptions $config): array
     {
         return array_merge($this->composeBase($config), [
             'up',
@@ -44,13 +44,13 @@ class DockerComposeCommandBuilder
     /**
      * Builds the Docker Compose running services command.
      *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that provides service options.
+     * @param  DockerComposeOptions  $config
+     *   The Docker-Composer configuration that provides service options.
      *
      * @return list<string>
      *   Returns command arguments for `docker compose ps`.
      */
-    public function buildRunningServicesCommand(DockerComposerConfig $config): array
+    public function buildRunningServicesCommand(DockerComposeOptions $config): array
     {
         return array_merge(
             $this->composeBase($config),
@@ -61,8 +61,8 @@ class DockerComposeCommandBuilder
     /**
      * Builds the Docker Compose script execution command.
      *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that provides service options.
+     * @param  DockerComposeOptions  $config
+     *   The Docker-Composer configuration that provides service options.
      *
      * @param  ScriptEvent  $event
      *   The Composer script event to replay inside Docker Compose.
@@ -70,39 +70,34 @@ class DockerComposeCommandBuilder
      * @param  bool  $interactive
      *   Whether the Docker command should keep TTY interaction enabled.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments for `docker compose exec` or `run`.
      */
-    public function buildScriptCommand(DockerComposerConfig $config, ScriptEvent $event, bool $interactive): array
-    {
-        $command = $this->composeBase($config);
-        $command[] = $config->getMode();
-
-        if ($config->getMode() === DockerComposerConfig::MODE_RUN) {
-            $command[] = '--rm';
-        }
-
-        if (! $interactive) {
-            $command[] = '-T';
-        }
-
-        if ($config->getWorkdir() !== null) {
-            $command[] = '--workdir';
-            $command[] = $config->getWorkdir();
-        }
-
-        $command[] = '--env';
-        $command[] = 'DOCKER_COMPOSER_INSIDE=1';
-        $command[] = $config->getService();
-
-        return array_merge($command, $this->composerRunScriptCommand($event));
+    public function buildScriptCommand(
+        DockerComposeOptions $config,
+        ScriptEvent $event,
+        bool $interactive,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
+        return $this->buildProcessCommand(
+            $config,
+            $this->composerRunScriptCommand($event, $hostPathRoot, $containerPathRoot),
+            $interactive,
+        );
     }
 
     /**
      * Builds the Docker Compose Composer command execution command.
      *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that provides service options.
+     * @param  DockerComposeOptions  $config
+     *   The Docker-Composer configuration that provides service options.
      *
      * @param  string  $commandName
      *   The Composer command name to replay inside Docker Compose.
@@ -113,15 +108,52 @@ class DockerComposeCommandBuilder
      * @param  bool  $interactive
      *   Whether the Docker command should keep TTY interaction enabled.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments for `docker compose exec` or `run`.
      */
-    public function buildComposerCommand(DockerComposerConfig $config, string $commandName, InputInterface $input, bool $interactive): array
+    public function buildComposerCommand(
+        DockerComposeOptions $config,
+        string $commandName,
+        InputInterface $input,
+        bool $interactive,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
+        $arguments = $this->getCommandArguments($input, $commandName);
+        if ($hostPathRoot !== null) {
+            $arguments = $this->translateProjectPaths($arguments, $hostPathRoot, $containerPathRoot);
+        }
+
+        return $this->buildProcessCommand($config, array_merge(['composer'], $arguments), $interactive);
+    }
+
+    /**
+     * Builds a Docker Compose process execution command.
+     *
+     * @param  DockerComposeOptions  $config
+     *   The Docker Compose configuration that provides service options.
+     *
+     * @param  list<string>  $processCommand
+     *   The command arguments that should run inside the service.
+     *
+     * @param  bool  $interactive
+     *   Whether the Docker command should keep TTY interaction enabled.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose exec` or `run`.
+     */
+    public function buildProcessCommand(DockerComposeOptions $config, array $processCommand, bool $interactive): array
     {
         $command = $this->composeBase($config);
         $command[] = $config->getMode();
 
-        if ($config->getMode() === DockerComposerConfig::MODE_RUN) {
+        if ($config->getMode() === DockerComposeOptions::MODE_RUN) {
             $command[] = '--rm';
         }
 
@@ -137,21 +169,150 @@ class DockerComposeCommandBuilder
         $command[] = '--env';
         $command[] = 'DOCKER_COMPOSER_INSIDE=1';
         $command[] = $config->getService();
-        $command[] = 'composer';
 
-        return array_merge($command, $this->getCommandArguments($input, $commandName));
+        return array_merge($command, $processCommand);
+    }
+
+    /**
+     * Builds the Docker Compose config inspection command.
+     *
+     * @param  DockerComposeOptions  $config
+     *   The configuration that provides compose files and project directory.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose config --format json`.
+     */
+    public function buildConfigCommand(DockerComposeOptions $config): array
+    {
+        return array_merge($this->composeBase($config), [
+            'config',
+            '--format',
+            'json',
+        ]);
+    }
+
+    /**
+     * Builds a service default workdir probe for exec mode.
+     *
+     * @param  DockerComposeOptions  $config
+     *   The Docker Compose configuration that identifies the service.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose exec -T <service> pwd`.
+     */
+    public function buildExecWorkdirCommand(DockerComposeOptions $config): array
+    {
+        return array_merge($this->composeBase($config), [
+            'exec',
+            '-T',
+            $config->getService(),
+            'pwd',
+        ]);
+    }
+
+    /**
+     * Builds a service default workdir probe for run mode.
+     *
+     * @param  DockerComposeOptions  $config
+     *   The Docker Compose configuration that identifies the service.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker compose run --rm -T <service> pwd`.
+     */
+    public function buildRunWorkdirCommand(DockerComposeOptions $config): array
+    {
+        return array_merge($this->composeBase($config), [
+            'run',
+            '--rm',
+            '-T',
+            $config->getService(),
+            'pwd',
+        ]);
+    }
+
+    /**
+     * Builds a Docker image workdir inspection command.
+     *
+     * @param  string  $image
+     *   The Docker image reference to inspect.
+     *
+     * @return list<string>
+     *   Returns command arguments for `docker image inspect`.
+     */
+    public function buildImageWorkdirCommand(string $image): array
+    {
+        return [
+            'docker',
+            'image',
+            'inspect',
+            '--format',
+            '{{.Config.WorkingDir}}',
+            $image,
+        ];
+    }
+
+    /**
+     * Translates absolute host paths in command arguments.
+     *
+     * @param  list<string>  $arguments
+     *   The host command arguments.
+     *
+     * @param  string  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
+     * @return list<string>
+     *   Returns arguments with host paths translated into container paths.
+     */
+    public function translateProjectPaths(array $arguments, string $hostPathRoot, ?string $containerPathRoot): array
+    {
+        if ($containerPathRoot === null) {
+            return $arguments;
+        }
+
+        $hostPathRoot = $this->normalizePath($hostPathRoot);
+        $containerPathRoot = rtrim($this->normalizePath($containerPathRoot), '/');
+        $translated = [];
+
+        foreach ($arguments as $argument) {
+            $prefix = '';
+            $path = $argument;
+            if (str_contains($argument, '=')) {
+                [$prefix, $path] = explode('=', $argument, 2);
+                $prefix .= '=';
+            }
+
+            $normalizedPath = $this->normalizePath($path);
+            if ($normalizedPath === $hostPathRoot) {
+                $translated[] = $prefix . $containerPathRoot;
+
+                continue;
+            }
+
+            if (str_starts_with($normalizedPath, $hostPathRoot . '/')) {
+                $translated[] = $prefix . $containerPathRoot . substr($normalizedPath, strlen($hostPathRoot));
+
+                continue;
+            }
+
+            $translated[] = $argument;
+        }
+
+        return $translated;
     }
 
     /**
      * Builds the common Docker Compose command prefix.
      *
-     * @param  DockerComposerConfig  $config
+     * @param  DockerComposeOptions  $config
      *   The configuration that provides compose files and project directory.
      *
      * @return list<string>
      *   Returns base arguments beginning with `docker compose`.
      */
-    private function composeBase(DockerComposerConfig $config): array
+    private function composeBase(DockerComposeOptions $config): array
     {
         $command = ['docker', 'compose'];
 
@@ -174,11 +335,20 @@ class DockerComposeCommandBuilder
      * @param  ScriptEvent  $event
      *   The script event whose name, flags, and arguments are replayed.
      *
+     * @param  string|null  $hostPathRoot
+     *   The host directory whose descendants can be translated.
+     *
+     * @param  string|null  $containerPathRoot
+     *   The matching container directory, or `null` to leave paths unchanged.
+     *
      * @return list<string>
      *   Returns command arguments beginning with `composer run-script`.
      */
-    private function composerRunScriptCommand(ScriptEvent $event): array
-    {
+    private function composerRunScriptCommand(
+        ScriptEvent $event,
+        ?string $hostPathRoot = null,
+        ?string $containerPathRoot = null,
+    ): array {
         $command = [
             'composer',
             'run-script',
@@ -198,11 +368,16 @@ class DockerComposeCommandBuilder
         }
 
         $command[] = '--';
+        $scriptArguments = [];
         foreach ($arguments as $argument) {
-            $command[] = $this->stringifyArgument($argument);
+            $scriptArguments[] = $this->stringifyArgument($argument);
         }
 
-        return $command;
+        if ($hostPathRoot !== null) {
+            $scriptArguments = $this->translateProjectPaths($scriptArguments, $hostPathRoot, $containerPathRoot);
+        }
+
+        return array_merge($command, $scriptArguments);
     }
 
     /**
@@ -395,5 +570,21 @@ class DockerComposeCommandBuilder
         }
 
         throw new InvalidArgumentException('Composer script arguments must be scalar values.');
+    }
+
+    /**
+     * Normalizes path separators and trailing slashes.
+     *
+     * @param  string  $path
+     *   The path to normalize.
+     *
+     * @return string
+     *   Returns a slash-separated path without trailing slash.
+     */
+    private function normalizePath(string $path): string
+    {
+        $path = str_replace('\\', '/', $path);
+
+        return rtrim($path, '/');
     }
 }

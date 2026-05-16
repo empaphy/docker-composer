@@ -1,0 +1,7 @@
+/.op
+/stubs
+
+.DS_Store
+.envrc
+*.log
+*.tmp

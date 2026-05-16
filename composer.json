@@ -20,15 +20,21 @@
     },
     "require": {
         "php": ">=8.1",
-        "composer-plugin-api": ">=1.1"
+        "composer-plugin-api": ">=2"
     },
     "require-dev": {
-        "composer/composer": ">=1.1",
+        "behat/behat": "^3",
+        "composer/composer": ">=2",
         "empaphy/filharmonic": "^1",
+        "illuminate/console": ">=10",
+        "illuminate/support": ">=10",
         "friendsofphp/php-cs-fixer": "^3",
+        "phpstan/extension-installer": "^1",
         "phpstan/phpstan": "^2",
         "phpstan/phpstan-phpunit": "^2",
-        "phpunit/phpunit": ">=10"
+        "phpstan/phpstan-strict-rules": "^2",
+        "phpunit/phpunit": ">=10",
+        "vlucas/phpdotenv": "^5.6.1"
     },
     "autoload": {
         "psr-4": {
@@ -46,26 +52,39 @@
                 "PKSA-z3gr-8qht-p93v"
                 : "'PHPUnit Vulnerable to Unsafe Deserialization in PHPT Code Coverage Handling' – We don't use PHPT"
             }
+        },
+        "allow-plugins": {
+            "phpstan/extension-installer": true
         }
     },
     "scripts": {
-        "style-check": "XDEBUG_MODE=off php-cs-fixer check",
-        "style-fix": "XDEBUG_MODE=off php-cs-fixer fix",
-        "stan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
-        "test": "XDEBUG_MODE=coverage phpunit --coverage-text",
-        "test-integration": "XDEBUG_MODE=off phpunit --testsuite Integration",
-        "test-unit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
+        "behat": [
+            "XDEBUG_MODE=off behat",
+            "XDEBUG_MODE=off behat --profile lowest"
+        ],
+        "check": ["@cs-check", "@phpstan", "@test"],
+        "cs-check": "XDEBUG_MODE=off php-cs-fixer check",
+        "cs-fix": "XDEBUG_MODE=off php-cs-fixer fix",
+        "phpstan": "XDEBUG_MODE=off phpstan analyse --memory-limit=1G",
+        "test": ["@phpunit", "@behat"],
+        "phpunit": "XDEBUG_MODE=coverage phpunit --testsuite Unit --coverage-text"
     },
     "scripts-descriptions": {
-        "style-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
-        "style-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
-        "stan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
-        "test": "Run all test suites using `phpunit --coverage-text [options] [<directory|file> ...]`",
-        "test-integration": "Run Integration test suite using `phpunit --testsuite Integration [options] [<directory|file> ...]`",
-        "test-unit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
+        "behat": "Run Behat feature tests using `behat [options] [--] [<paths>...]`.",
+        "check": "Perform all automated checks.",
+        "cs-check": "Check coding style using `php-cs-fixer check [options] [--] [<path>...]`",
+        "cs-fix": "Fix coding style using `php-cs-fixer fix [options] [--] [<path>...]`",
+        "phpstan": "Perform static analysis using `phpstan analyse [options] [--] [<paths>...]`",
+        "test": "Run all test suites.",
+        "phpunit": "Run Unit test suite using `phpunit --testsuite Unit --coverage-text [options] [<directory|file> ...]`"
     },
     "extra": {
         "class": "empaphy\\docker_composer\\DockerComposerPlugin",
+        "laravel": {
+            "providers": [
+                "empaphy\\docker_composer\\Laravel\\ServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "1.x-dev"
         }

@@ -12,6 +12,7 @@ use Composer\Script\Event as ScriptEvent;
 use Composer\Util\ProcessExecutor;
 use empaphy\docker_composer\DockerComposeCommandBuilder;
 use empaphy\docker_composer\DockerComposerConfig;
+use empaphy\docker_composer\DockerComposeOptions;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -167,6 +168,111 @@ class DockerComposeCommandBuilderTest extends TestCase
             'composer',
             'update',
         ], $command);
+    }
+
+    public function testCommandBuilderBuildsGenericProcessCommand(): void
+    {
+        [$composer] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'mode' => DockerComposeOptions::MODE_RUN,
+                'workdir' => '/usr/src/app',
+            ],
+        ]);
+        $config = DockerComposerConfig::fromComposer($composer);
+
+        $command = (new DockerComposeCommandBuilder())->buildProcessCommand($config, ['php', 'artisan', 'migrate'], false);
+
+        self::assertSame([
+            'docker',
+            'compose',
+            'run',
+            '--rm',
+            '-T',
+            '--workdir',
+            '/usr/src/app',
+            '--env',
+            'DOCKER_COMPOSER_INSIDE=1',
+            'php',
+            'php',
+            'artisan',
+            'migrate',
+        ], $command);
+    }
+
+    public function testCommandBuilderBuildsWorkdirDiscoveryCommands(): void
+    {
+        [$composer] = $this->createComposer([], [
+            'docker-composer' => [
+                'service' => 'php',
+                'compose-files' => 'compose.yaml',
+                'project-directory' => '.',
+            ],
+        ]);
+        $config = DockerComposerConfig::fromComposer($composer);
+        $builder = new DockerComposeCommandBuilder();
+
+        self::assertSame([
+            'docker',
+            'compose',
+            '--file',
+            'compose.yaml',
+            '--project-directory',
+            '.',
+            'config',
+            '--format',
+            'json',
+        ], $builder->buildConfigCommand($config));
+        self::assertSame([
+            'docker',
+            'compose',
+            '--file',
+            'compose.yaml',
+            '--project-directory',
+            '.',
+            'exec',
+            '-T',
+            'php',
+            'pwd',
+        ], $builder->buildExecWorkdirCommand($config));
+        self::assertSame([
+            'docker',
+            'compose',
+            '--file',
+            'compose.yaml',
+            '--project-directory',
+            '.',
+            'run',
+            '--rm',
+            '-T',
+            'php',
+            'pwd',
+        ], $builder->buildRunWorkdirCommand($config));
+        self::assertSame([
+            'docker',
+            'image',
+            'inspect',
+            '--format',
+            '{{.Config.WorkingDir}}',
+            'php:cli',
+        ], $builder->buildImageWorkdirCommand('php:cli'));
+    }
+
+    public function testCommandBuilderTranslatesProjectPaths(): void
+    {
+        $arguments = (new DockerComposeCommandBuilder())->translateProjectPaths([
+            '/host/app/artisan',
+            '--path=/host/app/database/migrations',
+            '/host/app',
+            '/elsewhere/file.php',
+        ], '/host/app', '/usr/src/app');
+
+        self::assertSame([
+            '/usr/src/app/artisan',
+            '--path=/usr/src/app/database/migrations',
+            '/usr/src/app',
+            '/elsewhere/file.php',
+        ], $arguments);
     }
 
     public function testCommandBuilderUsesServerArgvFallback(): void

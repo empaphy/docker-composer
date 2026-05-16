@@ -1,16 +1,15 @@
-# docker-composer
+# Docker-Composer
 
-Composer plugin that ensures scripts are always executed within a Docker Compose service.
+**Docker-Composer** is a Composer plugin that ensures scripts are always executed within a Docker Compose service.
 
 ## Installation
 
 ```bash
-composer require --dev empaphy/docker-composer
 composer config allow-plugins.empaphy/docker-composer true
+composer require --dev empaphy/docker-composer
 ```
 
-Composer 2.2 and newer require plugins to be allowed explicitly. Composer 1 ignores
-`allow-plugins`.
+Composer 2.2 and newer require plugins to be allowed explicitly.
 
 ## Configuration
 
@@ -46,7 +45,7 @@ Supported keys:
 - `mode`: `exec` or `run`; defaults to `exec`.
 - `compose-files`: one compose file path or a list of compose file paths.
 - `project-directory`: optional Docker Compose project directory.
-- `workdir`: optional working directory inside the container.
+- `workdir`: optional working directory inside the container. When omitted, the plugin attempts to infer it.
 - `exclude`: exact Composer script/event names that should run on the host.
 - `service-mapping`: Docker Compose service names mapped to one script or a list of scripts.
 
@@ -85,6 +84,12 @@ then run normally because the plugin detects that Composer is already inside a
 container. It also treats `/.dockerenv`, `/run/.containerenv`, and common cgroup
 markers as container signals.
 
+When `workdir` is omitted, the plugin attempts to infer the active host working
+directory's container path from Docker Compose bind volumes. If no mapping is
+found, it falls back to configured service `working_dir`, probing `pwd`, then
+image `Config.WorkingDir`. Path translation only runs when a host-to-container
+mapping is known.
+
 Set `DOCKER_COMPOSER_DISABLE=1` to bypass Docker redirection temporarily.
 
 ## Scope
@@ -100,3 +105,38 @@ requirements are resolved from inside the configured service:
 - `composer require`
 - `composer remove`
 - `composer reinstall`
+
+## Laravel
+
+**Docker-Composer** also registers a Laravel service provider through package
+autodiscovery. Publish and enable the Laravel config:
+
+```bash
+php artisan vendor:publish --tag=docker-composer-config
+```
+
+```php
+return [
+    'enabled' => env('DOCKER_COMPOSER_LARAVEL', false),
+    'service' => 'php',
+    'mode' => 'exec',
+    'compose_files' => ['docker-compose.yaml'],
+    'project_directory' => '.',
+    'workdir' => '/usr/src/app',
+    'exclude' => ['queue:work'],
+    'service_mapping' => [
+        'php-tools' => [
+            'config:cache',
+            Illuminate\Foundation\Console\ConfigCacheCommand::class,
+            ':scripts/task.php',
+        ],
+    ],
+];
+```
+
+When enabled, Laravel CLI bootstraps run in Docker Compose unless excluded.
+Artisan commands can be mapped by command name or command class. Custom scripts
+that bootstrap Laravel can be mapped by project-relative path prefixed with `:`.
+
+The Laravel integration preserves the original CLI arguments and translates
+absolute host project paths to the configured container `workdir`.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $finder = (new PhpCsFixer\Finder())
     ->in([
+        __DIR__ . '/features/bootstrap',
         __DIR__ . '/src',
         __DIR__ . '/tests',
     ]);
@@ -15,4 +16,5 @@ return (new PhpCsFixer\Config())
     ->setRules([
         '@PER-CS' => true,
         '@PER-CS:risky' => true,
+        //'psr_autoloading' => true,
     ]);

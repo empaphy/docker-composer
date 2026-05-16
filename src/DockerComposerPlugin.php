@@ -51,7 +51,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private ?IOInterface $io = null;
 
     /**
-     * Stores parsed Docker Composer configuration.
+     * Stores parsed Docker-Composer configuration.
      */
     private ?DockerComposerConfig $config = null;
 
@@ -71,6 +71,16 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private DockerComposeCommandBuilder $commandBuilder;
 
     /**
+     * Runs Docker Compose commands for the active process runner.
+     */
+    private ?DockerComposeRunner $dockerRunner = null;
+
+    /**
+     * Resolves container workdir and host directory mapping.
+     */
+    private DockerComposeWorkdirResolver $workdirResolver;
+
+    /**
      * Tracks whether the missing configuration warning was written.
      */
     private bool $missingConfigWarningWritten = false;
@@ -86,15 +96,6 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private bool $duplicateServiceMappingWarningsWritten = false;
 
     /**
-     * Tracks services started for Docker Compose exec mode.
-     *
-     * Stores startup keys for services already started during this process.
-     *
-     * @var array<string, true>
-     */
-    private array $startedExecServices = [];
-
-    /**
      * Creates a Composer plugin with optional collaborators.
      *
      * @param  ProcessRunner|null  $processRunner
@@ -105,15 +106,20 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *
      * @param  DockerComposeCommandBuilder|null  $commandBuilder
      *   The command builder, or `null` for the default builder.
+     *
+     * @param  DockerComposeWorkdirResolver|null  $workdirResolver
+     *   The workdir resolver, or `null` for the default resolver.
      */
     public function __construct(
         ?ProcessRunner $processRunner = null,
         ?ContainerDetector $containerDetector = null,
         ?DockerComposeCommandBuilder $commandBuilder = null,
+        ?DockerComposeWorkdirResolver $workdirResolver = null,
     ) {
         $this->processRunner = $processRunner;
         $this->containerDetector = $containerDetector ?? new EnvironmentContainerDetector();
         $this->commandBuilder = $commandBuilder ?? new DockerComposeCommandBuilder();
+        $this->workdirResolver = $workdirResolver ?? new DockerComposeWorkdirResolver($this->commandBuilder);
     }
 
     /**
@@ -351,7 +357,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The script event used to lazily access Composer.
      *
      * @return DockerComposerConfig
-     *   Returns parsed Docker Composer configuration.
+     *   Returns parsed Docker-Composer configuration.
      */
     private function getConfig(ScriptEvent $event): DockerComposerConfig
     {
@@ -488,7 +494,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The Composer script event being executed.
      *
      * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration used to build commands.
+     *   The Docker-Composer configuration used to build commands.
      *
      * @return void
      *   Returns nothing.
@@ -499,25 +505,18 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private function runInDocker(ScriptEvent $event, DockerComposerConfig $config): void
     {
         $runner = $this->getProcessRunner($event);
-
-        if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
-            $startupKey = $this->getExecServiceStartupKey($config);
-            if (! isset($this->startedExecServices[$startupKey])) {
-                $this->ensureExecServiceStarted($runner, $config);
-                $this->startedExecServices[$startupKey] = true;
-            }
-        }
-
+        $hostWorkingDirectory = $this->getHostWorkingDirectory();
+        $resolution = $this->resolveDockerWorkdir($config, $hostWorkingDirectory, $runner);
+        $config = new DockerComposeResolvedOptions($config, $resolution->getWorkdir());
         $isInteractive = $event->getIO()->isInteractive() && $runner->supportsTty();
         $scriptCommand = $this->commandBuilder->buildScriptCommand(
             $config,
             $event,
             $isInteractive,
+            $hostWorkingDirectory,
+            $resolution->getContainerWorkingDirectory(),
         );
-        $exitCode = $runner->run($scriptCommand, $isInteractive);
-        if ($exitCode !== 0) {
-            $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $scriptCommand);
-        }
+        $this->runDockerCommand($runner, $config, $scriptCommand, $isInteractive);
     }
 
     /**
@@ -527,7 +526,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
      *   The Composer command event being executed.
      *
      * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration used to build commands.
+     *   The Docker-Composer configuration used to build commands.
      *
      * @return void
      *   Returns nothing.
@@ -538,89 +537,19 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     private function runComposerCommandInDocker(PreCommandRunEvent $event, DockerComposerConfig $config): void
     {
         $runner = $this->getProcessRunnerForCommand();
-
-        if ($config->getMode() === DockerComposerConfig::MODE_EXEC) {
-            $startupKey = $this->getExecServiceStartupKey($config);
-            if (! isset($this->startedExecServices[$startupKey])) {
-                $this->ensureExecServiceStarted($runner, $config);
-                $this->startedExecServices[$startupKey] = true;
-            }
-        }
-
+        $hostWorkingDirectory = $this->getHostWorkingDirectory();
+        $resolution = $this->resolveDockerWorkdir($config, $hostWorkingDirectory, $runner);
+        $config = new DockerComposeResolvedOptions($config, $resolution->getWorkdir());
         $isInteractive = $event->getInput()->isInteractive() && $runner->supportsTty();
         $command = $this->commandBuilder->buildComposerCommand(
             $config,
             $event->getCommand(),
             $event->getInput(),
             $isInteractive,
+            $hostWorkingDirectory,
+            $resolution->getContainerWorkingDirectory(),
         );
-        $exitCode = $runner->run($command, $isInteractive);
-        if ($exitCode !== 0) {
-            $this->throwScriptExecutionException($runner, $exitCode, $config->getMode(), $command);
-        }
-    }
-
-    /**
-     * Ensures the configured service can receive `docker compose exec`.
-     *
-     * @param  ProcessRunner  $runner
-     *   The runner used for Docker Compose commands.
-     *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that identifies the service.
-     *
-     * @return void
-     *   Returns nothing.
-     *
-     * @throws ScriptExecutionException
-     *   Thrown when Docker Compose startup fails.
-     */
-    private function ensureExecServiceStarted(ProcessRunner $runner, DockerComposerConfig $config): void
-    {
-        if ($this->isExecServiceRunning($runner, $config)) {
-            return;
-        }
-
-        $upCommand = $this->commandBuilder->buildUpCommand($config);
-        $exitCode = $runner->run($upCommand);
-        if ($exitCode !== 0) {
-            $this->throwScriptExecutionException($runner, $exitCode, 'up', $upCommand);
-        }
-    }
-
-    /**
-     * Checks whether the configured exec-mode service is running.
-     *
-     * @param  ProcessRunner  $runner
-     *   The runner used for Docker Compose commands.
-     *
-     * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that identifies the service.
-     *
-     * @return bool
-     *   Returns `true` when Docker Compose lists the service as running.
-     */
-    private function isExecServiceRunning(ProcessRunner $runner, DockerComposerConfig $config): bool
-    {
-        if (! $runner instanceof OutputCapturingProcessRunner) {
-            return false;
-        }
-
-        $command = $this->commandBuilder->buildRunningServicesCommand($config);
-        $output = '';
-        if ($runner->runWithOutput($command, $output) !== 0) {
-            return false;
-        }
-
-        $services = preg_split('/\R/', trim($output)) ?: [];
-
-        foreach ($services as $service) {
-            if (trim($service) === $config->getService()) {
-                return true;
-            }
-        }
-
-        return false;
+        $this->runDockerCommand($runner, $config, $command, $isInteractive);
     }
 
     /**
@@ -651,7 +580,7 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     {
         if ($this->processRunner === null) {
             if ($this->io === null) {
-                throw new ScriptExecutionException('Docker Composer plugin was not activated.', 1);
+                throw new ScriptExecutionException('Docker-Composer plugin was not activated.', 1);
             }
 
             $this->processRunner = new ComposerProcessRunner($this->io);
@@ -661,21 +590,36 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
     }
 
     /**
-     * Builds a cache key for exec-mode service startup.
+     * Resolves Docker Compose workdir metadata for execution.
      *
      * @param  DockerComposerConfig  $config
-     *   The Docker Composer configuration that identifies the service.
+     *   The parsed Docker-Composer configuration.
+     *
+     * @param  string  $hostWorkingDirectory
+     *   The active host working directory.
+     *
+     * @param  ProcessRunner  $runner
+     *   The runner used for Docker commands.
+     *
+     * @return DockerComposeWorkdirResolution
+     *   Returns inferred workdir and host directory mapping.
+     */
+    private function resolveDockerWorkdir(DockerComposerConfig $config, string $hostWorkingDirectory, ProcessRunner $runner): DockerComposeWorkdirResolution
+    {
+        return $this->workdirResolver->resolve($config, $hostWorkingDirectory, $runner, $this->getDockerRunner($runner));
+    }
+
+    /**
+     * Gets the active host working directory.
      *
      * @return string
-     *   Returns a stable serialized key for the service startup command.
+     *   Returns the process CWD, falling back to `"."`.
      */
-    private function getExecServiceStartupKey(DockerComposerConfig $config): string
+    private function getHostWorkingDirectory(): string
     {
-        return serialize([
-            $config->getService(),
-            $config->getComposeFiles(),
-            $config->getProjectDirectory(),
-        ]);
+        $cwd = getcwd();
+
+        return $cwd !== false ? $cwd : '.';
     }
 
     /**
@@ -714,6 +658,53 @@ class DockerComposerPlugin implements EventSubscriberInterface, PluginInterface
         }
 
         throw new ScriptExecutionException($message, $exitCode);
+    }
+
+    /**
+     * Runs a Docker Compose command and throws when it fails.
+     *
+     * @param  ProcessRunner  $runner
+     *   The runner used for Docker Compose commands.
+     *
+     * @param  DockerComposeOptions  $config
+     *   The Docker Compose options that identify the target service.
+     *
+     * @param  list<string>  $command
+     *   The full Docker Compose command to execute.
+     *
+     * @param  bool  $interactive
+     *   Whether TTY passthrough should be requested.
+     *
+     * @return void
+     *   Returns nothing.
+     *
+     * @throws ScriptExecutionException
+     *   Thrown when Docker Compose startup or execution fails.
+     */
+    private function runDockerCommand(ProcessRunner $runner, DockerComposeOptions $config, array $command, bool $interactive): void
+    {
+        $result = $this->getDockerRunner($runner)->run($config, $command, $interactive);
+        if (! $result->isSuccessful()) {
+            $this->throwScriptExecutionException($runner, $result->getExitCode(), $result->getPhase(), $result->getCommand());
+        }
+    }
+
+    /**
+     * Gets the Docker Compose runner for the active process runner.
+     *
+     * @param  ProcessRunner  $runner
+     *   The process runner used for Docker Compose commands.
+     *
+     * @return DockerComposeRunner
+     *   Returns the shared Docker Compose runner.
+     */
+    private function getDockerRunner(ProcessRunner $runner): DockerComposeRunner
+    {
+        if ($this->dockerRunner === null) {
+            $this->dockerRunner = new DockerComposeRunner($runner, $this->commandBuilder);
+        }
+
+        return $this->dockerRunner;
     }
 
     /**

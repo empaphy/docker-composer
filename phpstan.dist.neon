@@ -1,27 +1,18 @@
-includes:
-    - vendor/phpstan/phpstan-phpunit/extension.neon
-
 parameters:
-    checkFunctionNameCase:             true
-    checkInternalClassCaseSensitivity: true
-    checkUninitializedProperties:      true
-
+    checkUninitializedProperties: true
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
-
-#    ignoreErrors:
-#        - identifier: missingType.generics
-#        - identifier: missingType.iterableValue
-
     level: 8
-    reportWrongPhpDocTypeInVarTag: true
-
-    resultCachePath: var/cache/phpstan/resultCache.php
-    tipsOfTheDay: false
-    treatPhpDocTypesAsCertain: false
-
+    parallel:
+        maximumNumberOfProcesses: 4
     paths:
+        - features/bootstrap/
         - src/
         - tests/
+    resultCachePath: var/cache/phpstan/resultCache.php
+    strictRules:
+        disallowedShortTernary: false
+    tipsOfTheDay: false
+    treatPhpDocTypesAsCertain: false
 
 services:
     cacheStorage:

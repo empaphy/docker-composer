@@ -1,0 +1,25 @@
+default:
+  gherkin: {       cache: '%paths.base%/var/cache/behat/gherkin' }
+  testers: { rerun_cache: '%paths.base%/var/cache/behat/rerun' }
+  suites:
+    composer_plugin:
+      paths: ['%paths.base%/features/composer_plugin.feature']
+      contexts:
+        - FeatureContext
+    laravel:
+      paths: ['%paths.base%/features/laravel.feature']
+      contexts:
+        - LaravelContext
+
+lowest:
+  gherkin: {       cache: '%paths.base%/var/cache/behat/gherkin' }
+  testers: { rerun_cache: '%paths.base%/var/cache/behat/rerun' }
+  suites:
+    composer_plugin:
+      paths: ['%paths.base%/features/composer_plugin.feature']
+      contexts:
+        - FeatureContext: { dependencyResolutionMode: prefer-lowest }
+    laravel:
+      paths: ['%paths.base%/features/laravel.feature']
+      contexts:
+        - LaravelContext: { dependencyResolutionMode: prefer-lowest }

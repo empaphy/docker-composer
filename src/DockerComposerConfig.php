@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Defines Docker Composer configuration parsing.
+ * Defines Docker-Composer configuration parsing.
  *
  * @copyright 2026 The Empaphy Project
  * @author    Alwin Garside <alwin@garsi.de>
@@ -18,15 +18,15 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * Parses and exposes Docker Composer configuration from Composer metadata.
+ * Parses and exposes Docker-Composer configuration from Composer metadata.
  */
-final class DockerComposerConfig
+final class DockerComposerConfig implements DockerComposeOptions
 {
     /**
      * Names the Composer extra key used by this plugin.
      *
      * @var string
-     *   Stores the `extra` object key containing Docker Composer settings.
+     *   Stores the `extra` object key containing Docker-Composer settings.
      */
     public const EXTRA_KEY = 'docker-composer';
 
@@ -36,7 +36,7 @@ final class DockerComposerConfig
      * @var string
      *   Stores the mode that executes scripts in an existing service container.
      */
-    public const MODE_EXEC = 'exec';
+    public const MODE_EXEC = DockerComposeOptions::MODE_EXEC;
 
     /**
      * Selects Docker Compose run mode.
@@ -44,7 +44,7 @@ final class DockerComposerConfig
      * @var string
      *   Stores the mode that creates a one-off service container for scripts.
      */
-    public const MODE_RUN = 'run';
+    public const MODE_RUN = DockerComposeOptions::MODE_RUN;
 
     /**
      * Lists supported configuration keys.
@@ -178,7 +178,7 @@ final class DockerComposerConfig
      *   The Composer instance that owns the package metadata.
      *
      * @return self
-     *   Returns parsed Docker Composer configuration.
+     *   Returns parsed Docker-Composer configuration.
      *
      * @throws InvalidArgumentException
      *   Thrown when `extra.docker-composer` has an invalid shape or value.

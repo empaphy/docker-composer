@@ -8,6 +8,7 @@
 /phpunit.xml
 
 .DS_Store
+.envrc
 .git
 .op
 Thumbs.db
